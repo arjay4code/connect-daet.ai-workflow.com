@@ -18,6 +18,10 @@ const tourismDecisionMigrationUrl = new URL(
   '../supabase/migrations/20261113042700_allow_tourism_office_responsible_decisions.sql',
   import.meta.url,
 );
+const pendingAssignmentGuardMigrationUrl = new URL(
+  '../supabase/migrations/20261115160000_exclude_responsible_office_from_pending_assignment_guard.sql',
+  import.meta.url,
+);
 
 test('only the responsible office can finalize, and outstanding assignments must be resolved first', async () => {
   const migration = await readFile(migrationUrl, 'utf8');
@@ -50,6 +54,15 @@ test('responsible decision RPC accepts every supported office role, including To
   assert.match(migration, /coalesce\(submission\.final_decision_office_role, submission\.initial_destination_role\)\s+is distinct from actor_role/);
   assert.match(migration, /public\.workflow_mvp_has_pending_assignment\(target_submission_id\)/);
   assert.match(migration, /when 'approve' then 'approved'/);
+});
+
+test('only active assignments outside the responsible office block its actions', async () => {
+  const migration = await readFile(pendingAssignmentGuardMigrationUrl, 'utf8');
+
+  assert.match(migration, /step\.status in \('pending', 'in_progress'\)/);
+  assert.match(migration, /step\.office_role is distinct from coalesce\(\s*submission\.selected_office_role,\s*submission\.initial_destination_role\s*\)/);
+  assert.match(migration, /plan\.is_current/);
+  assert.match(migration, /plan\.status = 'finalized'/);
 });
 
 test('responsible and forwarded offices can select approve/reject while Complete stays role-specific', async () => {

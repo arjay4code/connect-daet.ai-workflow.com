@@ -162,8 +162,8 @@ interface DocumentMessagingProps {
   submissionId: string;
   fileName: string;
   trackingNumber: string | null;
+  submitterConversationLabel?: string;
   activity: ReactNode;
-  afterSharedFiles?: ReactNode;
   assignmentConversations?: AssignmentConversation[];
   defaultAssignmentStepId?: string | null;
   showSubmitterConversation?: boolean;
@@ -282,8 +282,8 @@ export default function DocumentMessaging({
   submissionId,
   fileName,
   trackingNumber,
+  submitterConversationLabel = 'Submitter conversation',
   activity,
-  afterSharedFiles,
   assignmentConversations = EMPTY_ASSIGNMENT_CONVERSATIONS,
   defaultAssignmentStepId = null,
   showSubmitterConversation,
@@ -508,10 +508,10 @@ export default function DocumentMessaging({
         routing_step_id: message.routing_step_id,
         conversation_label: message.routing_step_id
           ? labelsByStep.get(message.routing_step_id) ?? 'Office assignment conversation'
-          : 'Submitter conversation',
+          : submitterConversationLabel,
       }];
     }));
-  }, [assignmentConversations, submissionId, supabase]);
+  }, [assignmentConversations, submissionId, submitterConversationLabel, supabase]);
 
   const markMessagesRead = useCallback(async (rows: MessageRow[], readerId: string) => {
     const unreadMessages = rows.filter((message) => message.sender_id !== readerId);
@@ -1229,7 +1229,7 @@ export default function DocumentMessaging({
           </span>
           <p className="text-xs font-semibold text-warm-text">No messages yet</p>
           <p className="max-w-xs text-[11px] leading-relaxed text-muted-text">
-            Write a message below to start the conversation about this document.
+            Send a message below if you have a question about this request.
           </p>
         </div>
       ) : (
@@ -1304,7 +1304,7 @@ export default function DocumentMessaging({
   );
   const conversationLabel = selectedThreadStepId
     ? selectedAssignmentConversation?.label ?? 'Office assignment conversation'
-    : 'Submitter conversation';
+    : submitterConversationLabel;
   const canChooseConversation = assignmentConversations.length > 1
     || (canViewSubmitterConversation && assignmentConversations.length > 0);
 
@@ -1326,7 +1326,7 @@ export default function DocumentMessaging({
             <div className="flex items-center gap-2.5">
               <span className="text-clay"><Icon name="message" size={17} /></span>
               <div>
-                <h3 className="text-sm font-bold text-warm-text">Messages</h3>
+                <h3 className="text-sm font-bold text-warm-text">Messages about your request</h3>
                 <p className="mt-0.5 text-[10px] text-muted-text">
                   {trackingNumber || fileName} · {conversationLabel}
                 </p>
@@ -1337,7 +1337,7 @@ export default function DocumentMessaging({
               liveStatus === 'connected' ? 'bg-approved-bg text-approved-text' : 'bg-sidebar text-muted-text'
             }`}>
               <span className={`h-1.5 w-1.5 rounded-full bg-current ${liveStatus === 'connecting' ? 'animate-pulse' : ''}`} />
-              {liveStatus === 'connected' ? 'Live' : liveStatus === 'disconnected' ? 'Paused' : 'Connecting...'}
+              {liveStatus === 'connected' ? 'Live updates' : liveStatus === 'disconnected' ? 'Updates paused' : 'Connecting...'}
             </span>
           </header>
 
@@ -1362,7 +1362,7 @@ export default function DocumentMessaging({
                       : 'border-warm-border bg-white text-warm-text hover:border-clay'
                   }`}
                 >
-                  Submitter conversation
+                  {submitterConversationLabel}
                 </button>
               )}
               {assignmentConversations.map((thread) => (
@@ -1485,8 +1485,8 @@ export default function DocumentMessaging({
             <header className="flex items-center gap-2.5 border-b border-warm-border px-5 py-4">
               <span className="text-clay"><Icon name="clock" size={17} /></span>
               <div>
-                <h3 className="text-sm font-bold text-warm-text">Activity</h3>
-                <p className="mt-0.5 text-[10px] text-muted-text">Workflow history and audit events</p>
+                <h3 className="text-sm font-bold text-warm-text">Request updates</h3>
+                <p className="mt-0.5 text-[10px] text-muted-text">Status changes and office activity</p>
               </div>
             </header>
             <div className="max-h-[560px] overflow-y-auto p-5">{activity}</div>
@@ -1502,8 +1502,8 @@ export default function DocumentMessaging({
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="shrink-0 text-clay"><Icon name="paperclip" size={17} /></span>
               <div>
-                <h3 className="text-sm font-bold text-warm-text">Shared files</h3>
-                <p className="mt-0.5 text-[10px] text-muted-text">Files shared in messages and office actions</p>
+                <h3 className="text-sm font-bold text-warm-text">Files shared in messages</h3>
+                <p className="mt-0.5 text-[10px] text-muted-text">Documents shared during your request</p>
               </div>
             </div>
             <span className="shrink-0 rounded-full bg-sidebar px-2.5 py-1 text-[10px] font-bold text-muted-text">
@@ -1512,7 +1512,7 @@ export default function DocumentMessaging({
           </header>
           <div className="max-h-64 overflow-y-auto p-4">
             {sharedAttachments.length === 0 ? (
-              <p className="rounded-xl bg-sidebar/60 px-4 py-3 text-[11px] text-muted-text">No files shared yet.</p>
+              <p className="rounded-xl bg-sidebar/60 px-4 py-3 text-[11px] text-muted-text">No documents have been shared yet.</p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {sharedAttachments.map((attachment) => (
@@ -1542,12 +1542,6 @@ export default function DocumentMessaging({
             )}
           </div>
         </section>
-      )}
-
-      {afterSharedFiles && (
-        <div className={workflowComposer?.isOfficeWorkspace ? 'order-3' : ''}>
-          {afterSharedFiles}
-        </div>
       )}
 
       {/* ── Your office action ── */}

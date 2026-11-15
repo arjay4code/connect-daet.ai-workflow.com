@@ -29,6 +29,7 @@ interface Submission {
   category: string | null;
   other_document_type: string | null;
   status: string;
+  reopen_count: number | null;
   created_at: string;
   selected_office_role: string | null;
   initial_destination_role: string | null;
@@ -51,7 +52,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All assigned documents' },
   { key: 'needs_action', label: 'Needs action' },
   { key: 'waiting_on_office', label: 'Waiting on another office' },
-  { key: 'changes_requested', label: 'Changes Requested' },
+  { key: 'changes_requested', label: 'Closed — Changes Requested' },
   { key: 'completed', label: 'Completed submissions' },
   { key: 'returned', label: 'Returned' },
   { key: 'withdrawn', label: 'Withdrawn' },
@@ -205,7 +206,7 @@ export default function OfficeDashboard({
 
     const { data, error: fetchError } = await supabase
       .from('workflow_submissions')
-      .select('id, tracking_number, file_name, file_type, category, other_document_type, status, created_at, selected_office_role, initial_destination_role')
+      .select('id, tracking_number, file_name, file_type, category, other_document_type, status, reopen_count, created_at, selected_office_role, initial_destination_role')
       .in('id', submissionIds)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -363,7 +364,14 @@ export default function OfficeDashboard({
                       className="flex flex-col gap-3 rounded-xl border border-warm-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
+                          {(submission.reopen_count ?? 0) > 0 && (
+                            <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
+                              Resubmitted
+                            </span>
+                          )}
+                        </div>
                         <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted-text">
                           <span>{submission.tracking_number || 'Tracking number pending'}</span>
                           <span aria-hidden="true">·</span>
@@ -468,7 +476,14 @@ export default function OfficeDashboard({
                     className="grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-4 sm:grid-cols-12"
                   >
                     <div className="min-w-0 sm:col-span-7">
-                      <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
+                        {(submission.reopen_count ?? 0) > 0 && (
+                          <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
+                            Resubmitted
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted-text">
                         <span>{submission.tracking_number || 'Tracking number pending'}</span>
                         <span aria-hidden="true">·</span>

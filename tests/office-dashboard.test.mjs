@@ -59,6 +59,20 @@ test('a rejected final decision is treated as processed rather than pending work
   assert.equal(matchesOfficeDashboardFilter(rejected, 'processed', 'municipal_treasurer'), true);
 });
 
+test('Changes Requested is closed to office action and appears in the processed queue', () => {
+  for (const status of ['changes_requested', 'returned_for_requirements']) {
+    const closed = {
+      status,
+      selected_office_role: 'municipal_treasurer',
+      officeRecord: null,
+    };
+    assert.equal(matchesOfficeDashboardFilter(closed, 'needs_action', 'municipal_treasurer'), false);
+    assert.equal(matchesOfficeDashboardFilter(closed, 'changes_requested', 'municipal_treasurer'), true);
+    assert.equal(matchesOfficeDashboardFilter(closed, 'processed', 'municipal_treasurer'), true);
+    assert.equal(matchesOfficeDashboardFilter(closed, 'changes_requested', 'tourism_officer'), false);
+  }
+});
+
 test('unrelated offices do not see a direct submission in needs-action', () => {
   assert.equal(matchesOfficeDashboardFilter({
     status: 'pending_office',

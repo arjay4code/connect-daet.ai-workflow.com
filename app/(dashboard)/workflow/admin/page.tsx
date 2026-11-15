@@ -72,8 +72,8 @@ function StatusStamp({ status }: { status: string }) {
       ? { label: 'Completed', styles: 'bg-approved-bg text-approved-text' }
       : value.includes('approved')
         ? { label: 'Approved', styles: 'bg-approved-bg text-approved-text' }
-        : value === 'returned_for_requirements'
-          ? { label: 'Returned for requirements', styles: 'bg-pending-bg text-pending-text' }
+        : value === 'changes_requested' || value === 'returned_for_requirements'
+          ? { label: 'Closed — Changes Requested', styles: 'bg-pending-bg text-pending-text' }
           : value.startsWith('pending')
             ? { label: value.replaceAll('_', ' '), styles: 'bg-review-bg text-review-text' }
             : { label: value.replaceAll('_', ' ') || 'Unknown', styles: 'bg-sidebar text-muted-text' };
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
     [profiles]
   );
   const pendingCount = submissions.filter((submission) =>
-    ['pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor', 'returned_for_requirements']
+    ['pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor']
       .includes(submission.status.toLowerCase())
   ).length;
   const completedCount = submissions.filter((submission) => submission.status.toLowerCase() === 'completed').length;

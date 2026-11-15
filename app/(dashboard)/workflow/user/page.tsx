@@ -23,6 +23,7 @@ interface Submission extends PreviewableFile {
   file_size: number;
   file_type: string;
   status: string;
+  reopen_count?: number | null;
   category?: string;
   selected_office_role?: string | null;
   approver_comments: string;
@@ -83,8 +84,9 @@ function StatusStamp({ status }: { status: string }) {
         return { label: 'Municipal office review', styles: 'bg-review-bg text-review-text' };
       case 'pending_mayor':
         return { label: "Mayor's office processing", styles: 'bg-review-bg text-review-text' };
+      case 'changes_requested':
       case 'returned_for_requirements':
-        return { label: 'Additional requirements requested', styles: 'bg-pending-bg text-pending-text' };
+        return { label: 'Closed — Changes Requested', styles: 'bg-pending-bg text-pending-text' };
       case 'approved':
         return { label: 'Approved', styles: 'bg-approved-bg text-approved-text' };
       case 'completed':
@@ -130,7 +132,14 @@ function SubmissionCard({
           <span className="mt-1 text-[8px] font-semibold uppercase">{sub.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{sub.file_name}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{sub.file_name}</h3>
+            {(sub.reopen_count ?? 0) > 0 && (
+              <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
+                Resubmitted
+              </span>
+            )}
+          </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-text">
             <span>{sub.id.slice(0, 7).toUpperCase()}</span>
             <span aria-hidden="true">·</span>

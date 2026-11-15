@@ -53,9 +53,11 @@ export default function WorkflowStatusPanel({
   const completed = submissionStatus === 'completed' || submissionStatus === 'approved';
   const rejected = submissionStatus === 'rejected' || submissionStatus.includes('declined');
   const withdrawn = submissionStatus === 'withdrawn';
-  const activeSteps = steps.filter((step) =>
+  const changesRequested = submissionStatus === 'changes_requested'
+    || submissionStatus === 'returned_for_requirements';
+  const activeSteps = changesRequested ? [] : steps.filter((step) =>
     step.routing_plan_id === currentRoutePlanId
-    && (step.status === 'pending' || step.status === 'in_progress')
+      && (step.status === 'pending' || step.status === 'in_progress')
   );
   const history = steps
     .filter((step) => step.status !== 'skipped')
@@ -100,21 +102,21 @@ export default function WorkflowStatusPanel({
     >
       <header className="border-b border-warm-border px-5 py-4">
         <h2 id={`submitter-workflow-status-${submissionId}`} className="text-sm font-bold text-warm-text">
-          Workflow status
+          Request progress
         </h2>
         <p className="mt-0.5 text-[10px] text-muted-text">
-          See which office is handling your submission and the actions recorded so far.
+          See which office is handling your request and what has happened so far.
         </p>
       </header>
       <div className="grid gap-4 p-5 sm:grid-cols-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Responsible office</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Office handling your request</p>
           <p className="mt-1 text-xs font-semibold text-warm-text">
-            {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Not assigned'}
+            {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Not assigned yet'}
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Currently handling</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Current office activity</p>
           {routeError ? (
             <p className="mt-1 text-xs text-rejected-text">{routeError}</p>
           ) : activeSteps.length > 0 ? (
@@ -123,29 +125,33 @@ export default function WorkflowStatusPanel({
                 <li key={step.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                   <span className="font-semibold text-warm-text">{getOfficeLabel(step.office_role)}</span>
                   <span className="text-[10px] font-medium text-pending-text">
-                    {step.status === 'pending' ? 'Awaiting start' : 'Under review'}
+                    {step.status === 'pending' ? 'Waiting to begin' : 'Reviewing your request'}
                   </span>
                 </li>
               ))}
             </ul>
           ) : completed || rejected || withdrawn ? (
-            <p className="mt-1 text-xs font-medium text-muted-text">No active office assignment</p>
-          ) : submissionStatus === 'changes_requested' || submissionStatus === 'returned' ? (
-            <p className="mt-1 text-xs font-semibold text-warm-text">Waiting for your response</p>
+            <p className="mt-1 text-xs font-medium text-muted-text">No office is currently reviewing this request.</p>
+          ) : changesRequested ? (
+            <p className="mt-1 text-xs font-semibold text-warm-text">
+              Processing is paused while you respond to the office's request for changes. You can message the office or update your files.
+            </p>
+          ) : submissionStatus === 'returned' ? (
+            <p className="mt-1 text-xs font-semibold text-warm-text">Choose a new office to continue.</p>
           ) : submissionStatus === 'submitted' && !receivedAt ? (
             <p className="mt-1 text-xs font-semibold text-warm-text">
-              Awaiting receipt by {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'the responsible office'}
+              Waiting for {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'the office handling your request'} to receive your request.
             </p>
           ) : (
             <p className="mt-1 text-xs font-semibold text-warm-text">
-              {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Responsible office'} can continue processing
+              {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'The office handling your request'} can continue processing.
             </p>
           )}
         </div>
         {history.length > 0 && (
           <div className="border-t border-warm-border pt-4 sm:col-span-2">
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">
-              Office actions and decisions
+              Office updates and decisions
             </p>
             <ol className="mt-2 divide-y divide-warm-border">
               {history.map((entry) => (

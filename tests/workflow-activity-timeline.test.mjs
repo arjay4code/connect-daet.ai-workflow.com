@@ -15,12 +15,12 @@ test('activity pane shows the five latest key updates in chronological order, to
   assert.match(timeline, /const RECENT_EVENT_LIMIT = 5/);
   assert.match(timeline, /a\.createdAt\.localeCompare\(b\.createdAt\)/);
   assert.match(timeline, /keyEvents\.slice\(-RECENT_EVENT_LIMIT\)/);
-  assert.match(timeline, /Latest workflow updates/);
-  assert.match(timeline, /Showing \$\{recentEvents\.length\} latest of \$\{keyEvents\.length\} key updates/);
+  assert.match(timeline, /Recent updates/);
+  assert.match(timeline, /Showing the \$\{recentEvents\.length\} most recent of \$\{keyEvents\.length\} updates/);
 });
 
-test('expanded activity history clearly identifies itself as the complete audit history', () => {
-  assert.match(timeline, /Show full audit history \(\{sortedEvents\.length\}, including updates above\)/);
+test('expanded activity history clearly identifies itself as all updates', () => {
+  assert.match(timeline, /View all updates \(\{sortedEvents\.length\}\)/);
   assert.match(timeline, /sortedEvents\.map\(\(event\) => <ActivityEvent/);
 });
 

@@ -113,21 +113,21 @@ export default function WorkflowActivityTimeline({
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Latest workflow updates</p>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Recent updates</p>
         <p className="mb-3 text-[10px] text-muted-text">
           {recentEvents.length === 0
-            ? 'No key workflow updates recorded yet.'
-            : `Showing ${recentEvents.length} latest of ${keyEvents.length} key updates.`}
+            ? 'No updates have been recorded yet.'
+            : `Showing the ${recentEvents.length} most recent of ${keyEvents.length} updates.`}
         </p>
         <ol className="space-y-4">
           {recentEvents.length > 0
             ? recentEvents.map((event) => <ActivityEvent key={event.id} event={event} featured showComments={showComments} />)
-            : <li className="text-[11px] text-muted-text">No key workflow updates recorded yet.</li>}
+            : <li className="text-[11px] text-muted-text">No updates have been recorded yet.</li>}
         </ol>
       </div>
       <details className="border-t border-warm-border pt-3">
         <summary className="cursor-pointer text-[10px] font-semibold text-clay outline-none hover:text-warm-text focus-visible:ring-2 focus-visible:ring-clay/30">
-          Show full audit history ({sortedEvents.length}, including updates above)
+          View all updates ({sortedEvents.length})
         </summary>
         <ol className="mt-4 space-y-4">
           {sortedEvents.map((event) => <ActivityEvent key={event.id} event={event} showComments={showComments} />)}
