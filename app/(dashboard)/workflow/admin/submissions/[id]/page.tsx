@@ -9,6 +9,7 @@ import WorkflowActivityTimeline from '@/components/WorkflowActivityTimeline';
 import WorkflowRevisionTimeline from '@/components/WorkflowRevisionTimeline';
 import FilePreview, { downloadFile, getFileUrl, type PreviewableFile } from '@/components/FilePreview';
 import CloseSubmissionDialog from '@/components/CloseSubmissionDialog';
+import { isArchiveEligibleStatus } from '@/lib/workflow/archive';
 import {
   getWorkflowDocumentTypeLabel,
   isOfficeRole,
@@ -156,6 +157,7 @@ export default function AdminManagePage() {
   const [routeReadyForCompletion, setRouteReadyForCompletion] = useState(false);
   const [routeLoadFailed, setRouteLoadFailed] = useState(false);
   const [archiveUpdating, setArchiveUpdating] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
   const [retentionDate, setRetentionDate] = useState('');
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(true);
@@ -323,7 +325,13 @@ export default function AdminManagePage() {
   const handleArchive = async () => {
     if (!sub) return;
     setArchiveUpdating(true);
+    setArchiveError('');
     const shouldArchive = !sub.archived_at;
+    if (shouldArchive && !isArchiveEligibleStatus(sub.status)) {
+      setArchiveError('Only approved or completed submissions can be archived.');
+      setArchiveUpdating(false);
+      return;
+    }
     const { error } = await supabase.rpc('set_workflow_submission_archive', {
       target_submission_id: id,
       should_archive: shouldArchive,
@@ -332,6 +340,7 @@ export default function AdminManagePage() {
 
     if (error) {
       console.error('Archive update failed:', error.message);
+      setArchiveError(error.message || 'Could not update archive status.');
     } else {
       await fetchDetails();
     }
@@ -375,6 +384,7 @@ export default function AdminManagePage() {
     : getStatusStyles(sub.status);
   const isFinalized = sub.status === 'completed' || sub.status.includes('declined');
   const isApproved = sub.status === 'approved';
+  const canArchive = isArchiveEligibleStatus(sub.status);
   const isPendingAdmin = sub.status === 'pending_admin' && !routeReadyForCompletion;
   const isRouteReadyForCompletion = sub.status === 'pending_admin' && routeReadyForCompletion;
 
@@ -695,13 +705,15 @@ export default function AdminManagePage() {
 
           {/* Secure Archive */}
           <section className="no-print rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-            <p className="mb-1 text-xs font-semibold text-warm-text">Secure archive</p>
+            <p className="mb-1 text-xs font-semibold text-warm-text">Archive</p>
             <p className="mb-4 text-xs leading-relaxed text-muted-text">
               {sub.archived_at
                 ? `Archived ${new Date(sub.archived_at).toLocaleString()}`
-                : 'This record is active and visible to authorized workflow users.'}
+                : canArchive
+                  ? 'This approved or completed submission is visible to authorized workflow users.'
+                  : 'Only approved or completed submissions can be archived.'}
             </p>
-            {!sub.archived_at && (
+            {!sub.archived_at && canArchive && (
               <div className="mb-4">
                 <label htmlFor="retention-date" className="mb-1.5 block text-[11px] font-medium text-muted-text">
                   Retention until
@@ -715,13 +727,20 @@ export default function AdminManagePage() {
                 />
               </div>
             )}
-            <button
-              onClick={handleArchive}
-              disabled={archiveUpdating}
-              className="inline-flex h-11 w-full items-center justify-center rounded-full border border-warm-border px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
-            >
-              {archiveUpdating ? 'Updating archive...' : sub.archived_at ? 'Restore from archive' : 'Archive record'}
-            </button>
+            {archiveError && (
+              <p role="alert" className="mb-3 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text">
+                {archiveError}
+              </p>
+            )}
+            {(sub.archived_at || canArchive) && (
+              <button
+                onClick={handleArchive}
+                disabled={archiveUpdating}
+                className="inline-flex h-11 w-full items-center justify-center rounded-full border border-warm-border px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
+              >
+                {archiveUpdating ? 'Updating archive...' : sub.archived_at ? 'Restore from archive' : 'Archive record'}
+              </button>
+            )}
           </section>
 
           <section className="no-print rounded-2xl border border-rejected-bg bg-rejected-bg/30 p-5 max-md:p-3.5">

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  getOfficeArchivePath,
   getOfficeFileManagementPath,
   getOfficeNotificationsPath,
   getRoleHomePath,
@@ -99,6 +100,7 @@ export default function WorkflowLayout({
       return [
         { href: getRoleHomePath(role), label: 'Dashboard', icon: '▤' },
         { href: getOfficeFileManagementPath(role), label: 'File Registry', icon: '▤' },
+        { href: getOfficeArchivePath(role), label: 'Archive', icon: '▥' },
         { href: getOfficeNotificationsPath(role), label: 'Notifications', icon: '⌁', alert: hasUnread && !pathname.includes('notifications') },
         { href: '/workflow/retrieval', label: 'Scan QR Code', icon: '⌗' },
       ];
@@ -108,7 +110,7 @@ export default function WorkflowLayout({
         { href: '/workflow/admin', label: 'Dashboard', icon: '⌬' },
         { href: '/workflow/admin/user_management', label: 'User Registry', icon: '☍' },
         { href: '/workflow/admin/submissions', label: 'File Submissions', icon: '▤' },
-        { href: '/workflow/admin/archive', label: 'Archive Registry', icon: '▥' },
+        { href: '/workflow/admin/archive', label: 'Archive', icon: '▥' },
         { href: '/workflow/admin/reports', label: 'Reports', icon: '▥' },
         { href: '/workflow/admin/notifications', label: 'Notifications', icon: '⌁', alert: hasUnread },
       ];

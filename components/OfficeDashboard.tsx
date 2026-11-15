@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
+import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
 import { createClient } from '@/lib/supabase/client';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import {
@@ -12,12 +14,15 @@ import {
 } from '@/lib/workflow/offices';
 import {
   matchesOfficeDashboardFilter,
-  type OfficeDashboardFilter,
 } from '@/lib/workflow/office-dashboard';
+import {
+  getDashboardSubmissionPreview,
+  matchesOfficeFileBrowserFilter,
+  type FileBrowserFilter,
+} from '@/lib/workflow/file-browser';
+import { isArchiveEligibleStatus } from '@/lib/workflow/archive';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
 import {
-  ASSIGNMENT_TONE_CLASSES,
-  describeAssignmentState,
   summarizeAssignment,
 } from '@/lib/workflow/assignments';
 
@@ -25,7 +30,10 @@ interface Submission {
   id: string;
   tracking_number: string | null;
   file_name: string;
+  file_url: string;
+  file_path: string | null;
   file_type: string | null;
+  file_size: number | null;
   category: string | null;
   other_document_type: string | null;
   status: string;
@@ -46,19 +54,6 @@ interface Submission {
   } | null;
 }
 
-type Filter = OfficeDashboardFilter;
-
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All assigned documents' },
-  { key: 'needs_action', label: 'Needs action' },
-  { key: 'waiting_on_office', label: 'Waiting on another office' },
-  { key: 'changes_requested', label: 'Closed — Changes Requested' },
-  { key: 'completed', label: 'Completed submissions' },
-  { key: 'returned', label: 'Returned' },
-  { key: 'withdrawn', label: 'Withdrawn' },
-  { key: 'processed', label: 'Processed by this office' },
-];
-
 function statusLabel(status: string, assignment = false) {
   if (assignment && status === 'pending') return 'Pending assignment';
   if (assignment && status === 'in_progress') return 'In Progress';
@@ -70,7 +65,7 @@ export default function OfficeDashboard({
   view,
 }: {
   role: OfficeRole;
-  view: 'dashboard' | 'file-management';
+  view: 'dashboard' | 'file-management' | 'archive';
 }) {
   const office = OFFICE_CONFIG[role];
   const viewerRole = useWorkflowRole();
@@ -81,10 +76,21 @@ export default function OfficeDashboard({
     `${officePath}/${submissionId}${adminOfficeQuery}`;
   const supabase = useMemo(() => createClient(), []);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<FileBrowserFilter>('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [previewFile, setPreviewFile] = useState<Submission | null>(null);
+  const [previewError, setPreviewError] = useState('');
+
+  useEffect(() => {
+    if (!previewFile) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewFile(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [previewFile]);
 
   const fetchSubmissions = useCallback(async () => {
     const { data: plans, error: plansError } = await supabase
@@ -206,7 +212,7 @@ export default function OfficeDashboard({
 
     const { data, error: fetchError } = await supabase
       .from('workflow_submissions')
-      .select('id, tracking_number, file_name, file_type, category, other_document_type, status, reopen_count, created_at, selected_office_role, initial_destination_role')
+      .select('id, tracking_number, file_name, file_url, file_path, file_type, file_size, category, other_document_type, status, reopen_count, created_at, selected_office_role, initial_destination_role')
       .in('id', submissionIds)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -271,9 +277,32 @@ export default function OfficeDashboard({
         submission.file_name.toLowerCase().includes(query) ||
         (submission.tracking_number ?? '').toLowerCase().includes(query) ||
         (submission.category ?? '').toLowerCase().includes(query);
-      return matchesSearch && matchesOfficeDashboardFilter(submission, filter, role);
+      return matchesSearch && matchesOfficeFileBrowserFilter(submission, filter, role);
     });
   }, [filter, role, search, submissions]);
+  const archiveSubmissions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return submissions.filter((submission) => {
+      const matchesSearch =
+        !query ||
+        submission.file_name.toLowerCase().includes(query) ||
+        (submission.tracking_number ?? '').toLowerCase().includes(query) ||
+        (submission.category ?? '').toLowerCase().includes(query);
+      return matchesSearch && isArchiveEligibleStatus(submission.status);
+    });
+  }, [search, submissions]);
+  const fileListSubmissions = view === 'archive' ? archiveSubmissions : filteredSubmissions;
+
+  const downloadPreview = async () => {
+    if (!previewFile) return;
+    setPreviewError('');
+    try {
+      await downloadFile(await getFileUrl(supabase, previewFile), previewFile.file_name);
+    } catch (downloadError) {
+      console.error('Office document download failed:', downloadError);
+      setPreviewError(downloadError instanceof Error ? downloadError.message : 'Could not download this document.');
+    }
+  };
 
   const needsReview = submissions.filter((submission) =>
     matchesOfficeDashboardFilter(submission, 'needs_action', role)
@@ -281,9 +310,9 @@ export default function OfficeDashboard({
   const completed = submissions.filter((submission) =>
     matchesOfficeDashboardFilter(submission, 'completed', role)
   ).length;
-  const recentActionItems = submissions
-    .filter((submission) => matchesOfficeDashboardFilter(submission, 'needs_action', role))
-    .slice(0, 5);
+  const recentActionItems = getDashboardSubmissionPreview(
+    submissions.filter((submission) => matchesOfficeDashboardFilter(submission, 'needs_action', role))
+  );
 
   return (
     <div className="w-full">
@@ -292,12 +321,14 @@ export default function OfficeDashboard({
           <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Office workspace
         </p>
         <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
-          {view === 'dashboard' ? `${office.label} dashboard` : 'File management'}
+          {view === 'dashboard' ? `${office.label} dashboard` : view === 'archive' ? 'Archive' : 'File management'}
         </h1>
         <p className="mt-2 text-xs text-muted-text">
           {view === 'dashboard'
             ? 'Review your office workload and continue processing documents that need action.'
-            : 'Search, filter, and review documents routed to or processed by your office.'}
+            : view === 'archive'
+              ? 'Approved and completed submissions handled by your office.'
+              : 'Search, filter, and review documents routed to or processed by your office.'}
         </p>
       </header>
 
@@ -405,46 +436,27 @@ export default function OfficeDashboard({
         </>
       ) : (
         <section>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-warm-text">Office document history</h2>
-              <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">
-                {filteredSubmissions.length}
-              </span>
-            </div>
-            <label className="sr-only" htmlFor="office-search">Search documents</label>
-            <input
-              id="office-search"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search title, tracking number, or category"
-              className="h-10 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text outline-none focus:border-clay sm:max-w-sm"
-            />
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <label className="relative w-full lg:max-w-xl lg:flex-1" htmlFor={view === 'archive' ? 'office-archive-search' : 'office-search'}>
+              <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
+              <input
+                id={view === 'archive' ? 'office-archive-search' : 'office-search'}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={view === 'archive' ? 'Find an archived file...' : 'Find a file by name...'}
+                className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+              />
+            </label>
+            {view !== 'archive' && <FileBrowserFilterSelect value={filter} onChange={setFilter} />}
             <button
               type="button"
               onClick={() => void fetchSubmissions()}
               disabled={loading}
-              className="h-10 shrink-0 rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50"
+              className="h-12 shrink-0 self-start rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50 lg:self-auto max-md:h-11"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
-          </div>
-
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-            {FILTERS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setFilter(item.key)}
-                aria-pressed={filter === item.key}
-                className={`h-10 shrink-0 rounded-full border px-4 text-xs font-medium transition-colors ${
-                  filter === item.key ? 'border-clay bg-clay text-white' : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
           </div>
 
           {error ? (
@@ -456,78 +468,156 @@ export default function OfficeDashboard({
             </div>
           ) : loading ? (
             <div className="rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-              Loading office documents...
-            </div>
-          ) : filteredSubmissions.length === 0 ? (
-            <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
-              <p className="font-serif text-2xl text-warm-text">No documents found</p>
-              <p className="mt-2 text-xs text-muted-text">
-                Documents assigned to this office, including past processing records, will appear here.
-              </p>
+              Loading files...
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredSubmissions.map((submission) => {
-                const processedAt = submission.officeRecord?.completed_at
-                  ?? submission.officeRecord?.decided_at;
-                return (
-                  <article
-                    key={submission.id}
-                    className="grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-4 sm:grid-cols-12"
-                  >
-                    <div className="min-w-0 sm:col-span-7">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
-                        {(submission.reopen_count ?? 0) > 0 && (
-                          <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
-                            Resubmitted
-                          </span>
-                        )}
+            <>
+              <div className="mb-4 flex items-center gap-3">
+                <h2 className="text-sm font-semibold text-warm-text">{view === 'archive' ? 'Archived files' : 'Office files'}</h2>
+                <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">{fileListSubmissions.length}</span>
+              </div>
+              {fileListSubmissions.length === 0 ? (
+                <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+                  <p className="font-serif text-2xl text-warm-text">Nothing here</p>
+                  <p className="mt-2 text-xs text-muted-text">
+                    {view === 'archive'
+                      ? 'No approved or completed files match your search.'
+                      : 'No files match your search or filters.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fileListSubmissions.map((submission) => (
+                    <article
+                      key={submission.id}
+                      className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                    >
+                      <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
+                        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
+                          <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                          <span className="mt-1 text-[8px] font-semibold uppercase">{submission.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                            <span className="rounded-md bg-clay-soft px-2 py-1 text-[10px] font-medium text-clay">
+                              {getWorkflowDocumentTypeLabel(submission.category, submission.other_document_type)}
+                            </span>
+                            <span className="text-[11px] text-muted-text">ID: {submission.id.slice(0, 8)}</span>
+                            {(submission.reopen_count ?? 0) > 0 && (
+                              <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">Resubmitted</span>
+                            )}
+                          </div>
+                          <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{submission.file_name}</h3>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>
+                              <span className="text-[11px] text-warm-text">{new Date(submission.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {submission.file_size ? (
+                              <div className="flex flex-col border-l border-warm-border pl-5">
+                                <span className="text-[10px] font-medium text-muted-text">Size</span>
+                                <span className="text-[11px] text-warm-text">{(submission.file_size / 1024).toFixed(1)} KB</span>
+                              </div>
+                            ) : null}
+                            <div className="flex flex-col border-l border-warm-border pl-5">
+                              <span className="text-[10px] font-medium text-muted-text">Reference number</span>
+                              <span className="text-[11px] text-warm-text">{submission.tracking_number || 'Pending'}</span>
+                            </div>
+                          </div>
+                          {submission.officeRecord && (
+                            <p className="mt-2 text-[10px] text-muted-text">
+                              This office: {statusLabel(submission.officeRecord.status, true)}
+                            </p>
+                          )}
+                          {submission.consultedRecord && (
+                            <p className="mt-1 text-[10px] font-semibold text-clay">
+                              {summarizeAssignment(submission.consultedRecord)}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted-text">
-                        <span>{submission.tracking_number || 'Tracking number pending'}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{getWorkflowDocumentTypeLabel(submission.category, submission.other_document_type)}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{new Date(submission.created_at).toLocaleDateString()}</span>
-                      </p>
-                      {submission.officeRecord
-                        && ['approved', 'completed', 'returned', 'withdrawn'].includes(submission.officeRecord.status)
-                        && (
-                          <p className="mt-2 text-[11px] text-muted-text">
-                            Processed
-                            {processedAt ? ` on ${new Date(processedAt).toLocaleDateString()}` : ''}
-                            {submission.officeRecord.comments ? ` · ${submission.officeRecord.comments}` : ''}
-                          </p>
-                        )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 sm:col-span-5 sm:justify-end">
-                      <span className="rounded-full bg-sidebar px-3 py-1.5 text-[11px] font-medium capitalize text-muted-text">
-                        Submission: {statusLabel(submission.status)}
-                      </span>
-                      {submission.officeRecord && (
-                        <span className="rounded-full bg-sidebar px-3 py-1.5 text-[11px] font-medium capitalize text-muted-text">
-                          This office: {statusLabel(submission.officeRecord.status, true)}
-                        </span>
-                      )}
-                      {submission.consultedRecord && (
-                        <span className={`rounded-full px-3 py-1.5 text-[11px] font-medium ${ASSIGNMENT_TONE_CLASSES[describeAssignmentState(submission.consultedRecord).tone]}`}>
-                          {summarizeAssignment(submission.consultedRecord)}
-                        </span>
-                      )}
-                      <Link
-                        href={officeSubmissionPath(submission.id)}
-                        className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
-                      >
-                        View
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                      <div className="flex flex-wrap items-center gap-3 sm:col-span-4 sm:justify-end max-md:w-full max-md:flex-col max-md:items-stretch">
+                        <div className="flex flex-col items-start gap-1.5 sm:items-end max-md:self-start">
+                          <span className="text-[10px] font-medium text-muted-text">Current status</span>
+                          <span className="rounded-full bg-sidebar px-3 py-1.5 text-[11px] font-medium capitalize text-muted-text">
+                            {statusLabel(submission.status)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewError('');
+                              setPreviewFile(submission);
+                            }}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-warm-border text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
+                            title="Quick preview"
+                            aria-label={`Preview ${submission.file_name}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </button>
+                          <Link
+                            href={officeSubmissionPath(submission.id)}
+                            className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
+                          >
+                            View document <span aria-hidden="true">→</span>
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
+      )}
+
+      {previewFile && (
+        <div className="fixed inset-0 z-100 flex flex-col bg-warm-text/75 backdrop-blur-sm animate-in fade-in duration-300 max-md:bg-card max-md:backdrop-blur-none">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Preview ${previewFile.file_name}`}
+            className="flex h-full flex-col"
+          >
+            <header className="flex min-h-16 items-center justify-between gap-4 border-b border-warm-border bg-card px-4 py-3 sm:px-8">
+              <div className="flex min-w-0 flex-col">
+                <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">Document preview</span>
+                <h2 className="max-w-[55vw] truncate text-sm font-semibold text-warm-text">{previewFile.file_name}</h2>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => void downloadPreview()}
+                  className="inline-flex h-10 items-center rounded-full border border-warm-border px-4 text-[11px] font-medium text-warm-text transition-colors hover:bg-sidebar max-md:h-11"
+                >
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  aria-label="Close document preview"
+                  className="inline-flex h-10 items-center rounded-full bg-clay px-4 text-[11px] font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11"
+                >
+                  Close
+                </button>
+              </div>
+            </header>
+            {previewError && (
+              <p role="alert" className="border-b border-rejected-bg bg-rejected-bg/50 px-4 py-2 text-xs text-rejected-text">
+                {previewError}
+              </p>
+            )}
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-cream p-3 sm:p-8 max-md:bg-card max-md:p-0">
+              <div className="relative flex h-full w-full max-w-6xl items-center justify-center overflow-hidden rounded-xl border border-warm-border bg-card shadow-xl max-md:max-w-none max-md:rounded-none max-md:border-0 max-md:shadow-none">
+                <FilePreview file={previewFile} />
+              </div>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );

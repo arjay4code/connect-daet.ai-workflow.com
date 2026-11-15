@@ -10,6 +10,7 @@ import { isOfficeRole, type OfficeRole } from '@/lib/workflow/offices';
 type ReviewerWorkspaceView =
   | 'dashboard'
   | 'file-management'
+  | 'archive'
   | 'notifications'
   | 'notification-archive';
 
@@ -50,6 +51,9 @@ export default function ReviewerWorkspace({ view }: { view: ReviewerWorkspaceVie
   }
   if (view === 'file-management') {
     return <OfficeDashboard role={role} view="file-management" />;
+  }
+  if (view === 'archive') {
+    return <OfficeDashboard role={role} view="archive" />;
   }
   if (view === 'notifications') {
     return <OfficeNotificationsPage role={role} />;

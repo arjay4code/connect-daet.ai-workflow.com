@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import FilePreview, { downloadFile, getFileUrl, type PreviewableFile } from '@/components/FilePreview';
 import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
+import { getDashboardSubmissionPreview } from '@/lib/workflow/file-browser';
 import { useRoutePreviews, type WorkflowRoutePreview } from '@/lib/workflow/useRoutePreviews';
 
 // ─── Styles & Fonts ──────────────────────────────────────────────────────────
@@ -278,6 +280,7 @@ export default function WorkflowDashboard() {
     () => submissions.filter(s => matchesFilter(s.status, filter)),
     [submissions, filter]
   );
+  const dashboardSubmissions = getDashboardSubmissionPreview(filteredSubmissions);
 
   return (
     <div className="w-full">
@@ -314,9 +317,16 @@ export default function WorkflowDashboard() {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-sm font-semibold text-warm-text">Recent submissions</h2>
-            <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">{filteredSubmissions.length}</span>
+            <span className="text-[11px] text-muted-text">
+              Showing {dashboardSubmissions.length} of {filteredSubmissions.length}
+            </span>
           </div>
-          <span className="text-[11px] text-muted-text max-md:hidden">All submissions</span>
+          <Link
+            href="/workflow/user/file_registry"
+            className="text-[11px] font-semibold text-clay underline underline-offset-4"
+          >
+            View all submissions
+          </Link>
         </div>
 
         {/* Filter pills (scroll inside their own row on mobile) */}
@@ -366,7 +376,7 @@ export default function WorkflowDashboard() {
                 </button>
               </div>
             ) : (
-              filteredSubmissions.map(sub => (
+              dashboardSubmissions.map(sub => (
                 <SubmissionCard
                   key={sub.id}
                   sub={sub}

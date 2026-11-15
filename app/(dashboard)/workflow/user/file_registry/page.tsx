@@ -3,37 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
 import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
 import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
+import { matchesFileBrowserFilter, type FileBrowserFilter } from '@/lib/workflow/file-browser';
 import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
 
 // ─── Styles & Fonts (synced with dashboard) ──────────────────────────────────
 const fonts = {
   serif: "font-serif",
   mono: "font-sans text-xs",
-};
-
-const FILTERS = ['ALL', 'ACTIVE', 'CHANGES REQUESTED', 'RETURNED', 'COMPLETED', 'WITHDRAWN'] as const;
-type Filter = (typeof FILTERS)[number];
-
-const matchesFilter = (status: string, filter: Filter) => {
-  const s = (status || '').toLowerCase();
-  switch (filter) {
-    case 'ACTIVE':
-      return ['submitted', 'in_process', 'pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor'].includes(s);
-    case 'CHANGES REQUESTED':
-      return s === 'changes_requested' || s === 'returned_for_requirements';
-    case 'RETURNED':
-      return s === 'returned';
-    case 'COMPLETED':
-      return s === 'completed' || s === 'approved';
-    case 'WITHDRAWN':
-      return s === 'withdrawn';
-    default:
-      return true;
-  }
 };
 
 interface PreviewSubmission {
@@ -56,7 +37,7 @@ interface FileSubmission extends PreviewSubmission {
 export default function UserFileRegistry() {
   const [submissions, setSubmissions] = useState<FileSubmission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<Filter>('ALL');
+  const [activeFilter, setActiveFilter] = useState<FileBrowserFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewFile, setPreviewFile] = useState<PreviewSubmission | null>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -100,7 +81,7 @@ export default function UserFileRegistry() {
   const filteredSubmissions = submissions.filter(file => {
     const title = file.file_name || '';
     const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch && matchesFilter(file.status, activeFilter);
+    return matchesSearch && matchesFileBrowserFilter(file.status, activeFilter);
   });
 
   return (
@@ -136,26 +117,7 @@ export default function UserFileRegistry() {
             />
           </div>
 
-          {/* Filter pills (scroll inside their own row on mobile) */}
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => {
-              const active = activeFilter === f;
-              return (
-                <button
-                  key={f}
-                  onClick={() => setActiveFilter(f)}
-                  aria-pressed={active}
-                  className={`inline-flex h-10 shrink-0 items-center rounded-full border px-4 text-xs font-medium transition-colors max-md:h-11 ${
-                    active
-                      ? 'border-clay bg-clay text-white'
-                      : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
-                  }`}
-                >
-                  {f}
-                </button>
-              );
-            })}
-          </div>
+          <FileBrowserFilterSelect value={activeFilter} onChange={setActiveFilter} />
         </div>
 
         {/* FILE LIST */}
@@ -168,7 +130,7 @@ export default function UserFileRegistry() {
             <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
               <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
               <p className="mt-2 text-xs text-muted-text">
-                No files found for &quot;{searchQuery || activeFilter}&quot;
+                No files match your search or selected status filter.
               </p>
             </div>
           ) : (

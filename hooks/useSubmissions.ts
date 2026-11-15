@@ -10,8 +10,11 @@ export interface Submission {
   tracking_number: string;
   file_name: string;
   file_url: string;
+  file_path?: string | null;
   file_type: string;
+  file_size?: number | null;
   category?: string | null;
+  other_document_type?: string | null;
   status: string;
   rejection_comment: string | null;
   created_at: string;
