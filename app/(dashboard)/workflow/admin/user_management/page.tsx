@@ -43,7 +43,7 @@ const FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'municipal_treasurer', label: "Treasurer's Office" },
   { key: 'mayor_office', label: "Mayor's Office" },
   { key: 'sangguniang_bayan', label: 'Sangguniang Bayan' },
-  { key: 'submitter', label: 'Submitter' },
+  { key: 'submitter', label: 'User' },
 ];
 
 const ROLE_STYLES: Record<string, string> = {
@@ -56,7 +56,7 @@ const ROLE_STYLES: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<Role, string> = {
-  submitter: 'Submitter',
+  submitter: 'User',
   tourism_officer: 'Tourism Officer',
   system_admin: 'System Administrator',
   municipal_treasurer: "Municipal Treasurer's Office",
