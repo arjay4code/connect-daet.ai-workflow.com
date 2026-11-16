@@ -12,5 +12,6 @@ values
   ('sangguniang_bayan', 'Request for Committee Investigation or Review'),
   ('sangguniang_bayan', 'Request for Certified Minutes of Session'),
   ('sangguniang_bayan', 'Request for Legislative Approval'),
-  ('sangguniang_bayan', 'Request for Public Hearing')
+  ('sangguniang_bayan', 'Request for Public Hearing'),
+  ('sangguniang_bayan', 'Other')
 on conflict (office_role, document_type) do nothing;

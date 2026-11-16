@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   OFFICE_CONFIG,
@@ -86,4 +87,19 @@ test('Tourism requests are grouped into three categories with a custom Other opt
       'Other',
     ]
   );
+});
+
+test('All office seed migrations allow an Other custom request type', async () => {
+  const seedFiles = [
+    '20261112140000_add_mayor_office_request_types.sql',
+    '20261112144000_add_municipal_treasurer_request_types.sql',
+    '20261112150000_add_sangguniang_bayan_request_types.sql',
+    '20261112150000_seed_tourism_office_document_types.sql',
+  ];
+
+  for (const fileName of seedFiles) {
+    const seedFile = new URL(`../supabase/migrations/${fileName}`, import.meta.url);
+    const migration = await readFile(seedFile, 'utf8');
+    assert.match(migration, /'Other'\)/, `${fileName} should seed the Other custom option`);
+  }
 });

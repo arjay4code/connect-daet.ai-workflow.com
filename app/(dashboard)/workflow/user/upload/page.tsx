@@ -8,10 +8,12 @@ import {
   getWorkflowFilesTypeError,
 } from '@/lib/workflow/file-types';
 import {
+  getWorkflowSubmissionTitle,
   SUBMISSION_DESTINATION_CONFIG,
   TOURISM_OFFICE_ROLE,
   type SubmissionDestinationRole,
 } from '@/lib/workflow/offices';
+import { getSupportingDocumentSuggestions } from '@/lib/workflow/supporting-document-suggestions';
 import { useRouter } from 'next/navigation';
 
 type UploadMessage = {
@@ -27,7 +29,6 @@ export default function UploadPage() {
   const otherDocumentTypeRef = useRef<HTMLTextAreaElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedOfficeRole, setSelectedOfficeRole] = useState<SubmissionDestinationRole | ''>('');
   const [category, setCategory] = useState('');
@@ -47,6 +48,10 @@ export default function UploadPage() {
   const availableDocumentTypes: readonly string[] = selectedOfficeRole
     ? SUBMISSION_DESTINATION_CONFIG[selectedOfficeRole].categories
     : [];
+  const supportingDocumentSuggestions = useMemo(() => {
+    if (!selectedOfficeRole || !category) return [];
+    return getSupportingDocumentSuggestions(selectedOfficeRole, category);
+  }, [category, selectedOfficeRole]);
 
   useEffect(() => {
     return () => {
@@ -84,7 +89,6 @@ export default function UploadPage() {
     }
 
     setFile(selectedFile);
-    setTitle((currentTitle) => currentTitle || selectedFile.name.replace(/\.[^.]+$/, ''));
     setMessage(null);
   };
 
@@ -111,14 +115,13 @@ export default function UploadPage() {
     if (uploading) return;
     if (
       !file
-      || !title.trim()
       || !selectedOfficeRole
       || !category
       || !availableDocumentTypes.includes(category)
       || (category === 'Other' && !otherDocumentType.trim())
     ) {
       setMessage({
-        text: 'Complete the destination, classification, document title, and main document before submitting.',
+        text: 'Complete the destination, classification, and main document before submitting.',
         type: 'error',
       });
       return;
@@ -197,13 +200,10 @@ export default function UploadPage() {
         .from('workflow_uploads')
         .getPublicUrl(filePath);
 
-      const fileName = title.trim().toLowerCase().endsWith(`.${extension}`)
-        ? title.trim()
-        : `${title.trim()}.${extension}`;
       const { data, error: submissionError } = await supabase.rpc(
         'create_workflow_submission',
         {
-          submission_title: fileName,
+          submission_title: file.name,
           submission_file_path: filePath,
           submission_file_url: publicUrlData.publicUrl,
           submission_file_type: contentType,
@@ -228,8 +228,9 @@ export default function UploadPage() {
       }
 
       uploadedFilePaths.length = 0;
+      const submissionTitle = getWorkflowSubmissionTitle(category, file.name);
       setMessage({
-        text: `Document submitted. Tracking number: ${submission.tracking_number}. Redirecting...`,
+        text: `${submissionTitle} submitted. Tracking number: ${submission.tracking_number}. Redirecting...`,
         type: 'success',
       });
       setTimeout(() => router.push('/workflow/user'), 1500);
@@ -377,22 +378,7 @@ export default function UploadPage() {
           </div>
         )}
 
-        <div>
-          <label className={labelClass} htmlFor="submission-title">
-            Document title / subject
-          </label>
-          <input
-            id="submission-title"
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="e.g. Request for municipal assistance"
-            className={fieldClass}
-            required
-          />
-        </div>
-
-        <div>
+        <div className="md:col-span-2">
           <label className={labelClass} htmlFor="submission-context">
             Request summary / context <span className="font-normal normal-case text-muted-text">(optional)</span>
           </label>
@@ -536,6 +522,21 @@ export default function UploadPage() {
           onChange={handleAttachmentChange}
           className="block w-full text-xs text-muted-text file:mr-3 file:rounded-full file:border-0 file:bg-clay-soft file:px-4 file:py-2 file:text-xs file:font-semibold file:text-clay"
         />
+        {supportingDocumentSuggestions.length > 0 && (
+          <div className="mt-4 rounded-xl border border-clay/30 bg-clay-soft/30 px-4 py-3">
+            <p className="text-xs font-semibold text-warm-text">
+              Possible Supporting Documents
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
+              Examples only; the destination office may request different documents.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-warm-text">
+              {supportingDocumentSuggestions.map((suggestion) => (
+                <li key={suggestion}>{suggestion}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {attachments.length > 0 && (
           <ul className="mt-3 space-y-2 text-[11px] text-warm-text">
             {attachments.map((attachment, attachmentIndex) => (
