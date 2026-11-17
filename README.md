@@ -183,11 +183,13 @@ its `{{ .ConfirmationURL }}` link; do not hard-code the reset route into the
 confirmation template or vice versa.
 Supabase Auth remains the source of truth for verification; the application
 blocks unconfirmed accounts from workflow pages and the protected file API.
-Password recovery uses the same `/auth/callback` allowlist and then returns to
-`/reset-password`; configure Supabase's recovery email template to use its
-standard secure recovery link. Recovery requests are issued through the
-server-side `/api/auth/password/request` handler and callback exchange before
-the password-change endpoint accepts an update.
+Password recovery uses the dedicated `/auth/password-recovery/callback` allowlist
+entry, which forwards the recovery code to `/auth/callback` with the
+`/reset-password` destination. This avoids relying on a query string being
+accepted by an exact redirect allowlist entry. Configure Supabase's recovery
+email template to use its standard secure recovery link. Recovery requests are
+issued through the server-side `/api/auth/password/request` handler and callback
+exchange before the password-change endpoint accepts an update.
 
 Workflow completion emails are sent through the email outbox and scheduled
 SendGrid processor. Email delivery runs automatically and is separate from the

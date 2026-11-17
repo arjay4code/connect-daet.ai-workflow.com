@@ -12,8 +12,7 @@ type ReviewerWorkspaceView =
   | 'dashboard'
   | 'file-management'
   | 'archive'
-  | 'notifications'
-  | 'notification-archive';
+  | 'notifications';
 
 export default function ReviewerWorkspace({ view }: { view: ReviewerWorkspaceView }) {
   const currentRole = useWorkflowRole();
@@ -56,8 +55,5 @@ export default function ReviewerWorkspace({ view }: { view: ReviewerWorkspaceVie
   if (view === 'archive') {
     return <WorkflowArchive role={role} adminOfficeView={currentRole === 'system_admin'} />;
   }
-  if (view === 'notifications') {
-    return <OfficeNotificationsPage role={role} />;
-  }
-  return <WorkflowNotificationArchive role={role} />;
+  return <OfficeNotificationsPage role={role} />;
 }
