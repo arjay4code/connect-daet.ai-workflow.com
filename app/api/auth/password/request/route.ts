@@ -92,12 +92,7 @@ export async function POST(request: NextRequest) {
       },
     }
   );
-<<<<<<< HEAD
-  const redirectTo = new URL('/auth/callback', applicationOrigin);
-  redirectTo.searchParams.set('flow', 'recovery');
-=======
   const redirectTo = new URL('/auth/password-recovery/callback', applicationOrigin);
->>>>>>> f43d4a39e6b0d9fa38d584cc27141cec99e315c4
   const { error } = await supabase.auth.resetPasswordForEmail(
     normalizedEmail,
     { redirectTo: redirectTo.toString() }

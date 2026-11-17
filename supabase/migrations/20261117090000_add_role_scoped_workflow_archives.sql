@@ -60,11 +60,7 @@ begin
     submission.tracking_number,
     submission.file_name,
     submission.file_type,
-<<<<<<< HEAD
-    submission.file_size,
-=======
     submission.file_size::bigint,
->>>>>>> f43d4a39e6b0d9fa38d584cc27141cec99e315c4
     submission.status,
     submission.category,
     submission.other_document_type,
