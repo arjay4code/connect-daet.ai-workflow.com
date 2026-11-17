@@ -85,6 +85,10 @@ export function getOfficeFileManagementPath(role: OfficeRole) {
   return `${OFFICE_CONFIG[role].path}/file_management`;
 }
 
+export function getOfficeArchivePath(role: OfficeRole) {
+  return `${OFFICE_CONFIG[role].path}/archive`;
+}
+
 export function getOfficeNotificationsPath(role: OfficeRole) {
   return `${OFFICE_CONFIG[role].path}/notifications`;
 }

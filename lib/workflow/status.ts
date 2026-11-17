@@ -5,8 +5,9 @@ const STATUS_LABELS: Record<string, string> = {
   in_process: 'In Process',
   pending_office: 'In Process',
   pending_mayor: 'In Process',
-  changes_requested: 'Changes Requested',
-  returned_for_requirements: 'Changes Requested',
+  changes_requested: 'Closed — Changes Requested',
+  returned_for_requirements: 'Closed — Changes Requested',
+  closed_by_submitter: 'Closed by submitter',
   returned: 'Returned',
   completed: 'Completed',
   approved: 'Approved',
@@ -37,6 +38,7 @@ export function getSubmissionStatusTone(status: string | null | undefined) {
     case 'returned':
       return 'returned';
     case 'withdrawn':
+    case 'closed_by_submitter':
       return 'withdrawn';
     default:
       return 'legacy';

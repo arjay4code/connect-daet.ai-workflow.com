@@ -35,10 +35,18 @@ test('the action list opens on the first available action', () => {
   assert.match(detail, /initialAction = \(actionsByRecipient\[initialRecipient\] \?\? \[\]\)\.find\(\(action\) => !action\.unavailableReason\)/);
 });
 
+test('Request changes remains available only with a verified current revision and resolved additional assignments', () => {
+  const requestChanges = actionBlock('request_changes');
+  assert.ok(requestChanges, 'Request changes action exists');
+  assert.match(requestChanges, /!sub\.current_revision_id/);
+  assert.match(requestChanges, /!availableOfficeActions\.includes\('request_changes'\)/);
+  assert.match(detail, /setAttachments\(detail\.supportingFiles\)/);
+});
+
 test('returned submissions close the office composer and submitter conversation', () => {
   assert.match(detail, /const isReturned = sub\.status === 'returned';/);
-  assert.match(detail, /const composerClosed = isCompleted \|\| isRejected \|\| isWithdrawn \|\| isReturned \|\| historicalRecipientView;/);
-  assert.match(detail, /!isWithdrawn && !isReturned && isResponsibleOffice/);
+  assert.match(detail, /const composerClosed = isChangesRequested \|\| isCompleted \|\| isRejected \|\| isWithdrawn \|\| isReturned \|\| historicalRecipientView;/);
+  assert.match(detail, /!isChangesRequested && !isCompleted && !isRejected && !isWithdrawn && !isReturned && isResponsibleOffice/);
   assert.match(detail, /This submission was returned to the submitter for redirection\./);
 });
 

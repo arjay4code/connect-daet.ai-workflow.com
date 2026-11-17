@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
-import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
+import { ARCHIVE_ELIGIBLE_STATUSES } from '@/lib/workflow/archive';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -24,7 +23,6 @@ type ArchivedSubmission = {
   created_at: string;
   archived_at: string;
   retention_until: string | null;
-  selected_office_role: string | null;
   profiles: { email: string } | null;
 };
 
@@ -53,7 +51,7 @@ function StatusStamp({ status }: { status: string }) {
   );
 }
 
-export default function ArchiveRegistryPage() {
+export default function ArchivePage() {
   const supabase = useMemo(() => createClient(), []);
   const [records, setRecords] = useState<ArchivedSubmission[]>([]);
   const [search, setSearch] = useState('');
@@ -61,17 +59,16 @@ export default function ArchiveRegistryPage() {
   const [toDate, setToDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
-  const routesBySubmission = useRoutePreviews(records);
-
   const fetchArchives = useCallback(async () => {
     const { data, error } = await supabase
       .from('workflow_submissions')
-      .select('id, tracking_number, file_name, file_type, status, category, created_at, archived_at, retention_until, selected_office_role, profiles:user_id(email)')
+      .select('id, tracking_number, file_name, file_type, status, category, created_at, archived_at, retention_until, profiles:user_id(email)')
       .not('archived_at', 'is', null)
+      .in('status', [...ARCHIVE_ELIGIBLE_STATUSES])
       .order('archived_at', { ascending: false });
 
     if (error) {
-      console.error('Archive registry fetch failed:', error.message);
+      console.error('Archive fetch failed:', error.message);
       setRecords([]);
     } else {
       setRecords((data || []).map((record) => ({
@@ -137,9 +134,9 @@ export default function ArchiveRegistryPage() {
         <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
           <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
         </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Archive registry</h1>
+        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Archive</h1>
         <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Secure records. Displaying <span className="text-warm-text">{filteredRecords.length}</span> archived records.
+          Approved and completed submissions. Displaying <span className="text-warm-text">{filteredRecords.length}</span> archived files.
         </p>
       </div>
 
@@ -172,7 +169,7 @@ export default function ArchiveRegistryPage() {
 
       {/* List header */}
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-sm font-semibold text-warm-text">Archived records</h2>
+        <h2 className="text-sm font-semibold text-warm-text">Archived files</h2>
         <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">{filteredRecords.length}</span>
       </div>
 
@@ -243,21 +240,6 @@ export default function ArchiveRegistryPage() {
                 >
                   {restoring === record.id ? 'Restoring...' : 'Restore'}
                 </button>
-              </div>
-              <div className="sm:col-span-12">
-                <WorkflowRoutingPipeline
-                  variant="compact"
-                  submissionStatus={record.status}
-                  submittedAt={record.created_at}
-                  routeSteps={routesBySubmission[record.id]?.steps ?? []}
-                  routeStatus={routesBySubmission[record.id]?.status ?? null}
-                  routeFinalizedAt={routesBySubmission[record.id]?.finalizedAt}
-                  selectedOfficeRole={record.selected_office_role}
-                  initialDestinationRole={routesBySubmission[record.id]?.initialDestinationRole}
-                  finalDecisionOfficeRole={routesBySubmission[record.id]?.finalDecisionOfficeRole}
-                  auditEvents={routesBySubmission[record.id]?.auditEvents ?? []}
-                  routeLoadFailed={routesBySubmission[record.id]?.loadFailed ?? false}
-                />
               </div>
             </article>
           ))}

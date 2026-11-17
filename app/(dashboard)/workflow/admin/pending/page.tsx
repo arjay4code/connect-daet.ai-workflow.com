@@ -1,14 +1,10 @@
 'use client';
 
-import { Fragment } from 'react';
 import { useSubmissions } from '@/hooks/useSubmissions';
 import Link from 'next/link';
-import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
-import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
 
 export default function PendingPage() {
   const { submissions, loading } = useSubmissions('pending_admin');
-  const routesBySubmission = useRoutePreviews(submissions);
 
   const statusColor: Record<string, string> = {
     pending:              'bg-pending-bg text-pending-text',
@@ -49,8 +45,7 @@ export default function PendingPage() {
             </thead>
             <tbody>
               {submissions.map((sub) => (
-                <Fragment key={sub.id}>
-                  <tr className="border-b border-warm-border last:border-0 hover:bg-sidebar">
+                  <tr key={sub.id} className="border-b border-warm-border last:border-0 hover:bg-sidebar">
                     <td className="py-3">
                       <span
                         onClick={() => window.open(`/api/workflow/files/${sub.id}?redirect=1`, '_blank')}
@@ -78,24 +73,6 @@ export default function PendingPage() {
                       </Link>
                     </td>
                   </tr>
-                  <tr>
-                    <td colSpan={6} className="border-b px-3 py-3">
-                      <WorkflowRoutingPipeline
-                        variant="compact"
-                        submissionStatus={sub.status}
-                        submittedAt={sub.created_at}
-                        routeSteps={routesBySubmission[sub.id]?.steps ?? []}
-                        routeStatus={routesBySubmission[sub.id]?.status ?? null}
-                        routeFinalizedAt={routesBySubmission[sub.id]?.finalizedAt}
-                        selectedOfficeRole={sub.selected_office_role}
-                        initialDestinationRole={routesBySubmission[sub.id]?.initialDestinationRole}
-                        finalDecisionOfficeRole={routesBySubmission[sub.id]?.finalDecisionOfficeRole}
-                        auditEvents={routesBySubmission[sub.id]?.auditEvents ?? []}
-                        routeLoadFailed={routesBySubmission[sub.id]?.loadFailed ?? false}
-                      />
-                    </td>
-                  </tr>
-                </Fragment>
               ))}
             </tbody>
           </table>

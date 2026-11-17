@@ -1,141 +1,84 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminDeleteSubmissionButton from '@/components/AdminDeleteSubmissionButton';
-import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
+import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
+import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
 import { useSubmissions } from '@/hooks/useSubmissions';
-import { getWorkflowTiming, workflowTimingClasses } from '@/lib/workflow/timing';
-import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
+import { createClient } from '@/lib/supabase/client';
+import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
+import {
+  matchesFileBrowserFilter,
+  type FileBrowserFilter,
+} from '@/lib/workflow/file-browser';
+import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
+import type { Submission } from '@/hooks/useSubmissions';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
   serif: 'font-serif',
 };
 
-type FilterStatus = 'all' | 'pending' | 'processed' | 'declined';
-
-const STATUS_FILTERS: { value: FilterStatus; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Needs processing' },
-  { value: 'processed', label: 'Processed' },
-  { value: 'declined', label: 'Declined' },
-];
-
-const matchesStatus = (status: string, filter: FilterStatus) => {
-  const s = status.toLowerCase();
-  switch (filter) {
-    case 'pending':
-      return ['pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor', 'returned_for_requirements'].includes(s);
-    case 'processed':
-      return s === 'approved' || s === 'completed';
-    case 'declined':
-      return s.includes('declined');
-    default:
-      return true;
-  }
-};
-
-const fieldClasses =
-  'h-11 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text outline-none transition-colors focus:border-clay';
-
 // ─── Status Stamp ────────────────────────────────────────────────────────────
 function StatusStamp({ status }: { status: string }) {
-  const getDisplayConfig = () => {
-    const s = status?.toLowerCase();
-
-    // Admin stage logic
-    if (s === 'pending_admin') return { label: 'Administrative review', styles: 'bg-review-bg text-review-text' };
-    if (s === 'pending_office') return { label: 'Municipal office review', styles: 'bg-review-bg text-review-text' };
-    if (s === 'pending_mayor') return { label: "Mayor's office processing", styles: 'bg-review-bg text-review-text' };
-    if (s === 'returned_for_requirements') return { label: 'Returned for requirements', styles: 'bg-pending-bg text-pending-text' };
-    if (s === 'completed') return { label: 'Completed', styles: 'bg-approved-bg text-approved-text' };
-    if (s.includes('approved')) return { label: 'Approved', styles: 'bg-approved-bg text-approved-text' };
-    if (s.includes('declined')) return { label: 'Declined', styles: 'bg-rejected-bg text-rejected-text' };
-
-    // Default / stage 01
-    return { label: 'Under verification', styles: 'bg-pending-bg text-pending-text' };
-  };
-
-  const config = getDisplayConfig();
+  const tone = getSubmissionStatusTone(status);
+  const declined = status.toLowerCase().includes('declined') || status.toLowerCase() === 'rejected';
+  const styles = declined
+    ? 'bg-rejected-bg text-rejected-text'
+    : tone === 'completed'
+      ? 'bg-approved-bg text-approved-text'
+      : tone === 'progress'
+        ? 'bg-review-bg text-review-text'
+        : tone === 'pending' || tone === 'returned'
+          ? 'bg-pending-bg text-pending-text'
+          : 'bg-sidebar text-muted-text';
 
   return (
-    <div className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium ${config.styles}`}>
+    <div className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium ${styles}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {config.label}
+      {declined ? 'Rejected' : getSubmissionStatusLabel(status)}
     </div>
   );
 }
 
 export default function SubmissionsPage() {
-  const [filter, setFilter] = useState<FilterStatus>('all');
+  const [filter, setFilter] = useState<FileBrowserFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [fileTypeFilter, setFileTypeFilter] = useState('all');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [previewFile, setPreviewFile] = useState<Submission | null>(null);
+  const [previewError, setPreviewError] = useState('');
   const { submissions, loading, refreshSubmissions } = useSubmissions();
-  const routesBySubmission = useRoutePreviews(submissions);
+  const supabase = useMemo(() => createClient(), []);
 
-  const fileTypes = useMemo(
-    () => [...new Set(submissions.map((s) => s.file_type).filter(Boolean))],
-    [submissions]
-  );
-  const categories = useMemo(
-    () => [...new Set(submissions.map((submission) => submission.category).filter(
-      (category): category is string => Boolean(category)
-    ))].sort(),
-    [submissions]
-  );
+  useEffect(() => {
+    if (!previewFile) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewFile(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [previewFile]);
 
-  // Everything except the status pills, so each pill can show its own count
-  const baseFiltered = useMemo(() => {
+  const filteredSubmissions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    const from = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
-    const to = toDate ? new Date(`${toDate}T23:59:59.999`) : null;
-
     return submissions.filter((sub) => {
       const matchesSearch = !query
         || sub.file_name.toLowerCase().includes(query)
         || sub.tracking_number?.toLowerCase().includes(query)
         || sub.profiles?.email?.toLowerCase().includes(query);
-      if (!matchesSearch) return false;
-
-      const createdDate = new Date(sub.created_at);
-      return (
-        (categoryFilter === 'all' || (sub.category || 'General') === categoryFilter) &&
-        (fileTypeFilter === 'all' || sub.file_type === fileTypeFilter) &&
-        (!from || createdDate >= from) &&
-        (!to || createdDate <= to)
-      );
+      return matchesSearch && matchesFileBrowserFilter(sub.status, filter);
     });
-  }, [submissions, searchQuery, categoryFilter, fileTypeFilter, fromDate, toDate]);
+  }, [filter, searchQuery, submissions]);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<FilterStatus, number> = { all: baseFiltered.length, pending: 0, processed: 0, declined: 0 };
-    baseFiltered.forEach((sub) => {
-      (['pending', 'processed', 'declined'] as const).forEach((key) => {
-        if (matchesStatus(sub.status, key)) counts[key]++;
-      });
-    });
-    return counts;
-  }, [baseFiltered]);
-
-  const filteredSubmissions = useMemo(
-    () => baseFiltered.filter((sub) => matchesStatus(sub.status, filter)),
-    [baseFiltered, filter]
-  );
-
-  const hasActiveFilters =
-    filter !== 'all' || !!searchQuery || categoryFilter !== 'all' || fileTypeFilter !== 'all' || !!fromDate || !!toDate;
-
-  const clearFilters = () => {
-    setFilter('all');
-    setSearchQuery('');
-    setCategoryFilter('all');
-    setFileTypeFilter('all');
-    setFromDate('');
-    setToDate('');
+  const downloadPreview = async () => {
+    if (!previewFile) return;
+    setPreviewError('');
+    try {
+      await downloadFile(await getFileUrl(supabase, previewFile), previewFile.file_name);
+    } catch (error) {
+      console.error('Admin document download failed:', error);
+      setPreviewError(error instanceof Error ? error.message : 'Could not download this document.');
+    }
   };
 
   return (
@@ -145,9 +88,9 @@ export default function SubmissionsPage() {
         <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
           <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
         </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Master logs</h1>
+        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
         <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Global archive and final review. Displaying <span className="text-warm-text">{filteredSubmissions.length}</span> records.
+          Search and review submissions from across the system. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.
         </p>
       </div>
 
@@ -157,149 +100,150 @@ export default function SubmissionsPage() {
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          aria-label="Search by file name, tracking number or requester"
-          placeholder="Search by tracking number, document name or requester email"
+          aria-label="Search files by name, reference number, or requester email"
+          placeholder="Find a file by name, reference number, or requester..."
           className="h-12 w-full rounded-full border border-warm-border bg-card px-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
         />
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Category" className={fieldClasses}>
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select value={fileTypeFilter} onChange={(event) => setFileTypeFilter(event.target.value)} aria-label="File type" className={fieldClasses}>
-            <option value="all">All file types</option>
-            {fileTypes.map((fileType) => (
-              <option key={fileType} value={fileType}>{fileType}</option>
-            ))}
-          </select>
-          <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From upload date" className={fieldClasses} />
-          <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To upload date" className={fieldClasses} />
-        </div>
-
-        {/* Status pills (scroll inside their own row on mobile) */}
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
-          {STATUS_FILTERS.map((f) => {
-            const active = filter === f.value;
-            return (
-              <button
-                key={f.value}
-                onClick={() => setFilter(f.value)}
-                aria-pressed={active}
-                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-medium transition-colors max-md:h-11 ${
-                  active
-                    ? 'border-clay bg-clay text-white'
-                    : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
-                }`}
-              >
-                {f.label}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'bg-white/25 text-white' : 'bg-sidebar text-muted-text'}`}>
-                  {statusCounts[f.value]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <FileBrowserFilterSelect value={filter} onChange={setFilter} />
       </div>
 
       {/* List header */}
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-sm font-semibold text-warm-text">Archive index</h2>
+        <h2 className="text-sm font-semibold text-warm-text">All files</h2>
         <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">{filteredSubmissions.length}</span>
       </div>
 
       {/* List */}
       {loading ? (
         <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Syncing records...
+          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading files...
         </div>
       ) : filteredSubmissions.length === 0 ? (
         <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
           <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
-          <p className="mt-2 text-xs text-muted-text">No submissions match your search or filters.</p>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="mt-5 inline-flex h-10 items-center rounded-full border border-warm-border px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar max-md:h-11"
-            >
-              Clear filters
-            </button>
-          )}
+          <p className="mt-2 text-xs text-muted-text">No files match your search or filters.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredSubmissions.map((sub) => {
-            const timing = getWorkflowTiming(sub);
-
             return (
               <article
                 key={sub.id}
                 className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
               >
-                <div className="flex min-w-0 items-center gap-4 sm:col-span-7">
+                <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
                   <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
                     <span className="text-lg leading-4" aria-hidden="true">▤</span>
-                    <span className="mt-1 text-[8px] font-semibold uppercase">
-                      {sub.file_type?.split('/').at(-1)?.slice(0, 3) || 'Doc'}
-                    </span>
+                    <span className="mt-1 text-[8px] font-semibold uppercase">{sub.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-clay-soft px-2 py-1 text-[10px] font-medium text-clay">
+                        {getWorkflowDocumentTypeLabel(sub.category ?? null, sub.other_document_type)}
+                      </span>
+                      <span className="text-[11px] text-muted-text">ID: {sub.id.slice(0, 8)}</span>
+                    </div>
                     <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{sub.file_name}</h3>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-text">
-                      <span>{sub.tracking_number || 'Tracking pending'}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="truncate">From {sub.profiles?.email ?? '—'}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{new Date(sub.created_at).toLocaleDateString()}</span>
-                      {timing.responsible && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span>Responsible: {timing.responsible}</span>
-                        </>
-                      )}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>
+                        <span className="text-[11px] text-warm-text">{new Date(sub.created_at).toLocaleDateString()}</span>
+                      </div>
+                      {sub.file_size ? (
+                        <div className="flex flex-col border-l border-warm-border pl-5">
+                          <span className="text-[10px] font-medium text-muted-text">Size</span>
+                          <span className="text-[11px] text-warm-text">{(sub.file_size / 1024).toFixed(1)} KB</span>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col border-l border-warm-border pl-5">
+                        <span className="text-[10px] font-medium text-muted-text">Requester</span>
+                        <span className="max-w-56 truncate text-[11px] text-warm-text">{sub.profiles?.email ?? 'Not available'}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:col-span-5 sm:justify-end max-md:w-full max-md:flex-col max-md:items-stretch">
+                <div className="flex flex-wrap items-center gap-3 sm:col-span-4 sm:justify-end max-md:w-full max-md:flex-col max-md:items-stretch">
                   <div className="flex flex-col items-start gap-1.5 sm:items-end max-md:self-start">
+                    <span className="text-[10px] font-medium text-muted-text">Current status</span>
                     <StatusStamp status={sub.status} />
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${workflowTimingClasses(timing.state)}`}>
-                      {timing.label}
-                    </span>
                   </div>
-                  <Link
-                    href={`/workflow/admin/submissions/${sub.id}`}
-                    className="inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full max-md:justify-center"
-                  >
-                    View document <span aria-hidden="true">→</span>
-                  </Link>
-                  <AdminDeleteSubmissionButton
-                    submissionId={sub.id}
-                    fileName={sub.file_name}
-                    onDeleted={() => void refreshSubmissions()}
-                  />
-                </div>
-                <div className="sm:col-span-12">
-                  <WorkflowRoutingPipeline
-                    variant="compact"
-                    submissionStatus={sub.status}
-                    submittedAt={sub.created_at}
-                    routeSteps={routesBySubmission[sub.id]?.steps ?? []}
-                    routeStatus={routesBySubmission[sub.id]?.status ?? null}
-                    routeFinalizedAt={routesBySubmission[sub.id]?.finalizedAt}
-                    selectedOfficeRole={sub.selected_office_role}
-                    initialDestinationRole={routesBySubmission[sub.id]?.initialDestinationRole}
-                    finalDecisionOfficeRole={routesBySubmission[sub.id]?.finalDecisionOfficeRole}
-                    auditEvents={routesBySubmission[sub.id]?.auditEvents ?? []}
-                    routeLoadFailed={routesBySubmission[sub.id]?.loadFailed ?? false}
-                  />
+                  <div className="flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewError('');
+                        setPreviewFile(sub);
+                      }}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-warm-border text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
+                      title="Quick preview"
+                      aria-label={`Preview ${sub.file_name}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    <Link
+                      href={`/workflow/admin/submissions/${sub.id}`}
+                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
+                    >
+                      View document <span aria-hidden="true">→</span>
+                    </Link>
+                    <AdminDeleteSubmissionButton
+                      submissionId={sub.id}
+                      fileName={sub.file_name}
+                      onDeleted={() => void refreshSubmissions()}
+                    />
+                  </div>
                 </div>
               </article>
             );
           })}
+        </div>
+      )}
+
+      {previewFile && (
+        <div className="fixed inset-0 z-100 flex flex-col bg-warm-text/75 backdrop-blur-sm animate-in fade-in duration-300 max-md:bg-card max-md:backdrop-blur-none">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Preview ${previewFile.file_name}`}
+            className="flex h-full flex-col"
+          >
+            <header className="flex min-h-16 items-center justify-between gap-4 border-b border-warm-border bg-card px-4 py-3 sm:px-8">
+              <div className="flex min-w-0 flex-col">
+                <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">Document preview</span>
+                <h2 className="max-w-[55vw] truncate text-sm font-semibold text-warm-text">{previewFile.file_name}</h2>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => void downloadPreview()}
+                  className="inline-flex h-10 items-center rounded-full border border-warm-border px-4 text-[11px] font-medium text-warm-text transition-colors hover:bg-sidebar max-md:h-11"
+                >
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  className="inline-flex h-10 items-center rounded-full bg-clay px-4 text-[11px] font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11"
+                >
+                  Close
+                </button>
+              </div>
+            </header>
+            {previewError && (
+              <p role="alert" className="border-b border-rejected-bg bg-rejected-bg/50 px-4 py-2 text-xs text-rejected-text">
+                {previewError}
+              </p>
+            )}
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-cream p-3 sm:p-8 max-md:bg-card max-md:p-0">
+              <div className="relative flex h-full w-full max-w-6xl items-center justify-center overflow-hidden rounded-xl border border-warm-border bg-card shadow-xl max-md:max-w-none max-md:rounded-none max-md:border-0 max-md:shadow-none">
+                <FilePreview file={previewFile} />
+              </div>
+            </div>
+          </section>
         </div>
       )}
     </div>

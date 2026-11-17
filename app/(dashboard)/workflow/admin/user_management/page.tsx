@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import WorkflowAuthoritySettings from '@/components/WorkflowAuthoritySettings';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -44,7 +43,7 @@ const FILTERS: { key: RoleFilter; label: string }[] = [
   { key: 'municipal_treasurer', label: "Treasurer's Office" },
   { key: 'mayor_office', label: "Mayor's Office" },
   { key: 'sangguniang_bayan', label: 'Sangguniang Bayan' },
-  { key: 'submitter', label: 'Submitter' },
+  { key: 'submitter', label: 'User' },
 ];
 
 const ROLE_STYLES: Record<string, string> = {
@@ -57,7 +56,7 @@ const ROLE_STYLES: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<Role, string> = {
-  submitter: 'Submitter',
+  submitter: 'User',
   tourism_officer: 'Tourism Officer',
   system_admin: 'System Administrator',
   municipal_treasurer: "Municipal Treasurer's Office",
@@ -310,8 +309,6 @@ export default function UserManagementPage() {
         </p>
       </div>
 
-      <WorkflowAuthoritySettings />
-
       <section className="mb-6 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
         <div className="mb-4">
           <h2 className="text-sm font-semibold text-warm-text">Create an account and assign a role</h2>
@@ -547,13 +544,36 @@ export default function UserManagementPage() {
           />
         </div>
 
-        {/* Role filter pills (scroll inside their own row on mobile) */}
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+          <label className="flex h-12 w-full items-center gap-3 rounded-full border border-warm-border bg-card px-4 transition-colors focus-within:border-clay sm:w-64">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">
+              Role
+            </span>
+            <select
+              aria-label="Filter users by role"
+              value={roleFilter}
+              onChange={(event) => {
+                const nextFilter = FILTERS.find((filter) => filter.key === event.currentTarget.value);
+                if (nextFilter) setRoleFilter(nextFilter.key);
+              }}
+              className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-warm-text outline-none"
+            >
+              {FILTERS.map((filter) => (
+                <option key={filter.key} value={filter.key}>
+                  {filter.label} ({roleCounts[filter.key]})
+                </option>
+              ))}
+            </select>
+            <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-text" viewBox="0 0 20 20" fill="none">
+              <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </label>
+
           <button
             type="button"
             onClick={() => setShowInactive((current) => !current)}
             aria-pressed={showInactive}
-            className={`inline-flex h-10 shrink-0 items-center rounded-full border px-4 text-xs font-medium transition-colors max-md:h-11 ${
+            className={`inline-flex h-12 w-full shrink-0 items-center justify-center rounded-full border px-4 text-xs font-medium transition-colors sm:w-auto ${
               showInactive
                 ? 'border-clay bg-clay text-white'
                 : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
@@ -561,26 +581,6 @@ export default function UserManagementPage() {
           >
             {showInactive ? 'Showing removed accounts' : 'Show removed accounts'}
           </button>
-          {FILTERS.map(f => {
-            const active = roleFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setRoleFilter(f.key)}
-                aria-pressed={active}
-                className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-medium transition-colors max-md:h-11 ${
-                  active
-                    ? 'border-clay bg-clay text-white'
-                    : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
-                }`}
-              >
-                {f.label}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? 'bg-white/25 text-white' : 'bg-sidebar text-muted-text'}`}>
-                  {roleCounts[f.key]}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 

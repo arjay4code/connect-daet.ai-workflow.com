@@ -112,14 +112,13 @@ export default function UploadPage() {
     if (
       !file
       || !title.trim()
-      || !description.trim()
       || !selectedOfficeRole
       || !category
       || !availableDocumentTypes.includes(category)
       || (category === 'Other' && !otherDocumentType.trim())
     ) {
       setMessage({
-        text: 'Complete the destination, classification, document title, request summary, and main document before submitting.',
+        text: 'Complete the destination, classification, document title, and main document before submitting.',
         type: 'error',
       });
       return;
@@ -210,7 +209,7 @@ export default function UploadPage() {
           submission_file_type: contentType,
           submission_file_size: file.size,
           submission_document_type: category,
-          submission_description: description.trim(),
+          submission_description: description.trim() || null,
           submission_purpose: null,
           submission_requested_action: null,
           submission_intended_recipient: null,
@@ -395,7 +394,7 @@ export default function UploadPage() {
 
         <div>
           <label className={labelClass} htmlFor="submission-context">
-            Request summary / context
+            Request summary / context <span className="font-normal normal-case text-muted-text">(optional)</span>
           </label>
           <textarea
             id="submission-context"
@@ -404,7 +403,6 @@ export default function UploadPage() {
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Briefly explain what this submission is about."
             className={`${fieldClass} h-auto resize-y py-3 leading-relaxed`}
-            required
           />
         </div>
 

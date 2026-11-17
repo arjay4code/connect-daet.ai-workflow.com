@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import FilePreview from '@/components/FilePreview';
-import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
+import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
+import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
 import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import { createClient } from '@/lib/supabase/client';
-import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
+import {
+  getDashboardSubmissionPreview,
+  matchesFileBrowserFilter,
+  type FileBrowserFilter,
+} from '@/lib/workflow/file-browser';
+import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
 
 type Role =
   | 'submitter'
@@ -46,52 +51,24 @@ interface Submission {
 
 const PAGE_SIZE = 500;
 
-const ROLE_GROUPS: { role: Role; label: string }[] = [
-  { role: 'submitter', label: 'Submitters' },
-  { role: 'tourism_officer', label: 'Tourism Officers' },
-  { role: 'municipal_treasurer', label: "Municipal Treasurer's Office" },
-  { role: 'mayor_office', label: "Mayor's Office" },
-  { role: 'sangguniang_bayan', label: 'Sangguniang Bayan Office' },
-  { role: 'system_admin', label: 'System Administrators' },
-];
-
-const ROLE_STYLES: Record<Role, string> = {
-  submitter: 'bg-sidebar text-muted-text',
-  tourism_officer: 'bg-review-bg text-review-text',
-  municipal_treasurer: 'bg-approved-bg text-approved-text',
-  mayor_office: 'bg-pending-bg text-pending-text',
-  sangguniang_bayan: 'bg-rejected-bg text-rejected-text',
-  system_admin: 'bg-clay-soft text-clay',
-};
-
 function StatusStamp({ status }: { status: string }) {
   const value = status.toLowerCase();
-  const config = value.includes('declined') || value === 'rejected'
-    ? { label: 'Declined', styles: 'bg-rejected-bg text-rejected-text' }
-    : value === 'completed'
-      ? { label: 'Completed', styles: 'bg-approved-bg text-approved-text' }
-      : value.includes('approved')
-        ? { label: 'Approved', styles: 'bg-approved-bg text-approved-text' }
-        : value === 'returned_for_requirements'
-          ? { label: 'Returned for requirements', styles: 'bg-pending-bg text-pending-text' }
-          : value.startsWith('pending')
-            ? { label: value.replaceAll('_', ' '), styles: 'bg-review-bg text-review-text' }
-            : { label: value.replaceAll('_', ' ') || 'Unknown', styles: 'bg-sidebar text-muted-text' };
+  const tone = getSubmissionStatusTone(value);
+  const declined = value.includes('declined') || value === 'rejected';
+  const styles = declined
+    ? 'bg-rejected-bg text-rejected-text'
+    : tone === 'completed'
+      ? 'bg-approved-bg text-approved-text'
+      : tone === 'progress'
+        ? 'bg-review-bg text-review-text'
+        : tone === 'pending' || tone === 'returned'
+          ? 'bg-pending-bg text-pending-text'
+          : 'bg-sidebar text-muted-text';
 
   return (
-    <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium capitalize ${config.styles}`}>
+    <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium capitalize ${styles}`}>
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {config.label}
-    </span>
-  );
-}
-
-function RoleBadge({ role }: { role: Role }) {
-  const label = ROLE_GROUPS.find((group) => group.role === role)?.label ?? role;
-  return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${ROLE_STYLES[role]}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {label}
+      {declined ? 'Rejected' : getSubmissionStatusLabel(value)}
     </span>
   );
 }
@@ -137,7 +114,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [previewSubmission, setPreviewSubmission] = useState<Submission | null>(null);
-  const routesBySubmission = useRoutePreviews(submissions);
+  const [previewError, setPreviewError] = useState('');
+  const [fileFilter, setFileFilter] = useState<FileBrowserFilter>('all');
+  const [fileSearch, setFileSearch] = useState('');
 
   const fetchMonitoringData = useCallback(async () => {
     setLoading(true);
@@ -179,8 +158,30 @@ export default function AdminDashboard() {
     () => new Map(profiles.map((profile) => [profile.id, profile])),
     [profiles]
   );
+  const filteredSubmissions = useMemo(() => {
+    const query = fileSearch.trim().toLowerCase();
+    return submissions.filter((submission) => {
+      const profile = profilesById.get(submission.user_id);
+      const matchesSearch = !query
+        || submission.file_name.toLowerCase().includes(query)
+        || (submission.tracking_number ?? '').toLowerCase().includes(query)
+        || (profile?.email ?? '').toLowerCase().includes(query);
+      return matchesSearch && matchesFileBrowserFilter(submission.status, fileFilter);
+    });
+  }, [fileFilter, fileSearch, profilesById, submissions]);
+  const dashboardSubmissions = getDashboardSubmissionPreview(filteredSubmissions);
+  const downloadPreview = async () => {
+    if (!previewSubmission) return;
+    setPreviewError('');
+    try {
+      await downloadFile(await getFileUrl(supabase, previewSubmission), previewSubmission.file_name);
+    } catch (error) {
+      console.error('Admin document download failed:', error);
+      setPreviewError(error instanceof Error ? error.message : 'Could not download this document.');
+    }
+  };
   const pendingCount = submissions.filter((submission) =>
-    ['pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor', 'returned_for_requirements']
+    ['pending', 'pending_approver', 'pending_admin', 'pending_office', 'pending_mayor']
       .includes(submission.status.toLowerCase())
   ).length;
   const completedCount = submissions.filter((submission) => submission.status.toLowerCase() === 'completed').length;
@@ -225,7 +226,9 @@ export default function AdminDashboard() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-warm-text">Submitted documents</h2>
-            <p className="mt-1 text-[11px] text-muted-text">Preview the file and review the submitter’s description and request details.</p>
+            <p className="mt-1 text-[11px] text-muted-text">
+              Showing {dashboardSubmissions.length} of {filteredSubmissions.length} matching files. Search by document name, reference number, or requester.
+            </p>
           </div>
           <Link href="/workflow/admin/submissions" className="text-xs font-semibold text-clay underline underline-offset-4">
             Open full file registry
@@ -240,68 +243,99 @@ export default function AdminDashboard() {
             <p className="mt-2 text-xs text-muted-text">New user documents will appear here.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {submissions.map((submission) => {
+          <>
+            <div className="mb-4 space-y-3">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
+                <input
+                  type="search"
+                  value={fileSearch}
+                  onChange={(event) => setFileSearch(event.target.value)}
+                  aria-label="Search files by name, reference number, or requester email"
+                  placeholder="Find a file by name..."
+                  className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+                />
+              </div>
+              <FileBrowserFilterSelect value={fileFilter} onChange={setFileFilter} />
+            </div>
+
+            {filteredSubmissions.length === 0 ? (
+              <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+                <p className="font-serif text-2xl text-warm-text">Nothing here</p>
+                <p className="mt-2 text-xs text-muted-text">No files match your search or filters.</p>
+              </div>
+            ) : <div className="space-y-3">
+            {dashboardSubmissions.map((submission) => {
               const profile = profilesById.get(submission.user_id);
               return (
-                <article key={submission.id} className="rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                <article
+                  key={submission.id}
+                  className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                >
+                  <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
+                    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
+                      <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                      <span className="mt-1 text-[8px] font-semibold uppercase">{submission.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
-                      <p className="mt-1 text-[11px] text-muted-text">
-                        {submission.tracking_number || 'Tracking pending'} · {profile?.full_name || profile?.email || 'Unknown submitter'} · {new Date(submission.created_at).toLocaleDateString()}
-                      </p>
-                      <p className="mt-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
-                        {submission.description || 'No description provided.'}
-                      </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {profile && <RoleBadge role={profile.role} />}
-                        <StatusStamp status={submission.status} />
-                        {submission.category && (
-                          <span className="text-[11px] text-muted-text">
-                            {getWorkflowDocumentTypeLabel(
-                              submission.category,
-                              submission.other_document_type
-                            )}
-                          </span>
-                        )}
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                        <span className="rounded-md bg-clay-soft px-2 py-1 text-[10px] font-medium text-clay">
+                          {getWorkflowDocumentTypeLabel(submission.category, submission.other_document_type)}
+                        </span>
+                        <span className="text-[11px] text-muted-text">ID: {submission.id.slice(0, 8)}</span>
+                      </div>
+                      <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{submission.file_name}</h3>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>
+                          <span className="text-[11px] text-warm-text">{new Date(submission.created_at).toLocaleDateString()}</span>
+                        </div>
+                        {submission.file_size ? (
+                          <div className="flex flex-col border-l border-warm-border pl-5">
+                            <span className="text-[10px] font-medium text-muted-text">Size</span>
+                            <span className="text-[11px] text-warm-text">{(submission.file_size / 1024).toFixed(1)} KB</span>
+                          </div>
+                        ) : null}
+                        <div className="flex flex-col border-l border-warm-border pl-5">
+                          <span className="text-[10px] font-medium text-muted-text">Requester</span>
+                          <span className="max-w-56 truncate text-[11px] text-warm-text">{profile?.email || 'Not available'}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex shrink-0 gap-2 max-sm:w-full max-sm:flex-col">
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 sm:col-span-4 sm:justify-end max-md:w-full max-md:flex-col max-md:items-stretch">
+                    <div className="flex flex-col items-start gap-1.5 sm:items-end max-md:self-start">
+                      <span className="text-[10px] font-medium text-muted-text">Current status</span>
+                      <StatusStamp status={submission.status} />
+                    </div>
+                    <div className="flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch">
                       <button
                         type="button"
-                        onClick={() => setPreviewSubmission(submission)}
-                        className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-sm:w-full"
+                        onClick={() => {
+                          setPreviewError('');
+                          setPreviewSubmission(submission);
+                        }}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-warm-border text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
+                        title="Quick preview"
+                        aria-label={`Preview ${submission.file_name}`}
                       >
-                        Preview file
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                        </svg>
                       </button>
                       <Link
                         href={`/workflow/admin/submissions/${submission.id}`}
-                        className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-sm:w-full"
+                        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
                       >
-                        Full record
+                        View document <span aria-hidden="true">→</span>
                       </Link>
                     </div>
-                  </div>
-                  <div className="mt-4">
-                    <WorkflowRoutingPipeline
-                      variant="compact"
-                      submissionStatus={submission.status}
-                      submittedAt={submission.created_at}
-                      routeSteps={routesBySubmission[submission.id]?.steps ?? []}
-                      routeStatus={routesBySubmission[submission.id]?.status ?? null}
-                      routeFinalizedAt={routesBySubmission[submission.id]?.finalizedAt}
-                      selectedOfficeRole={submission.selected_office_role}
-                      initialDestinationRole={routesBySubmission[submission.id]?.initialDestinationRole}
-                      finalDecisionOfficeRole={routesBySubmission[submission.id]?.finalDecisionOfficeRole}
-                      auditEvents={routesBySubmission[submission.id]?.auditEvents ?? []}
-                      routeLoadFailed={routesBySubmission[submission.id]?.loadFailed ?? false}
-                    />
                   </div>
                 </article>
               );
             })}
-          </div>
+            </div>}
+          </>
         )}
       </section>
 
@@ -320,15 +354,29 @@ export default function AdminDashboard() {
                   {profilesById.get(previewSubmission.user_id)?.email || 'Unknown submitter'} · {previewSubmission.tracking_number || 'Tracking pending'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewSubmission(null)}
-                aria-label="Close document preview"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-muted-text hover:bg-sidebar"
-              >
-                ×
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void downloadPreview()}
+                  className="inline-flex h-10 items-center rounded-full border border-warm-border px-4 text-[11px] font-medium text-warm-text transition-colors hover:bg-sidebar"
+                >
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewSubmission(null)}
+                  aria-label="Close document preview"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-muted-text hover:bg-sidebar"
+                >
+                  ×
+                </button>
+              </div>
             </header>
+            {previewError && (
+              <p role="alert" className="border-b border-rejected-bg bg-rejected-bg/50 px-4 py-2 text-xs text-rejected-text">
+                {previewError}
+              </p>
+            )}
             <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="min-h-80 rounded-xl border border-warm-border bg-white p-3">
                 <FilePreview file={previewSubmission} />

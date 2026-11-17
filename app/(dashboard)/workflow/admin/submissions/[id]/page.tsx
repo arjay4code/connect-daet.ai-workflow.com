@@ -6,14 +6,21 @@ import { createClient } from '@/lib/supabase/client';
 import AdminDeleteSubmissionButton from '@/components/AdminDeleteSubmissionButton';
 import DocumentMessaging from '@/components/DocumentMessaging';
 import WorkflowActivityTimeline from '@/components/WorkflowActivityTimeline';
+import WorkflowRevisionTimeline from '@/components/WorkflowRevisionTimeline';
 import FilePreview, { downloadFile, getFileUrl, type PreviewableFile } from '@/components/FilePreview';
 import CloseSubmissionDialog from '@/components/CloseSubmissionDialog';
+import { isArchiveEligibleStatus } from '@/lib/workflow/archive';
 import {
   getWorkflowDocumentTypeLabel,
   isOfficeRole,
   OFFICE_CONFIG,
   type OfficeRole,
 } from '@/lib/workflow/offices';
+import {
+  type WorkflowRevisionHistory,
+} from '@/lib/workflow/revisions';
+import { loadWorkflowSubmissionDetail } from '@/lib/workflow/submission-detail';
+import { useSubmissionDetailRealtime } from '@/lib/workflow/useSubmissionDetailRealtime';
 
 // ─── Styles & Fonts (synced with the approver and user file pages) ───────────
 const fonts = {
@@ -90,7 +97,8 @@ const getStatusStyles = (status: string) => {
   if (s === 'pending_admin') return { label: 'Pending administrative processing', classes: 'bg-review-bg text-review-text' };
   if (s === 'pending_office') return { label: 'Pending municipal office', classes: 'bg-review-bg text-review-text' };
   if (s === 'pending_mayor') return { label: "Pending Mayor's office processing", classes: 'bg-review-bg text-review-text' };
-  if (s === 'returned_for_requirements') return { label: 'Returned for requirements', classes: 'bg-pending-bg text-pending-text' };
+  if (s === 'changes_requested' || s === 'returned_for_requirements') return { label: 'Closed — Changes Requested', classes: 'bg-pending-bg text-pending-text' };
+  if (s === 'closed_by_submitter') return { label: 'Closed by submitter', classes: 'bg-sidebar text-muted-text' };
   if (s === 'approved') return { label: 'Approved', classes: 'bg-approved-bg text-approved-text' };
   if (s === 'completed') return { label: 'Completed', classes: 'bg-approved-bg text-approved-text' };
   if (s.includes('declined') || s === 'rejected') return { label: 'Declined', classes: 'bg-rejected-bg text-rejected-text' };
@@ -119,6 +127,8 @@ const getActionLabel = (type: string) => {
     case 'ROUTE_RETURNED_TO_ADMIN': return 'All routed offices approved; returned to Admin';
     case 'WORKFLOW_COMPLETED': return 'Workflow completed';
     case 'SUBMITTED': return 'Submission submitted';
+    case 'SUBMISSION_REOPENED': return 'Submitter resubmitted a revision';
+    case 'SUBMISSION_PERMANENTLY_CLOSED': return 'Submitter permanently closed submission';
     default: return 'Action by';
   }
 };
@@ -132,6 +142,9 @@ export default function AdminManagePage() {
   const [sender, setSender] = useState<SenderProfile | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [attachments, setAttachments] = useState<SupportingAttachment[]>([]);
+  const [revisionHistory, setRevisionHistory] = useState<WorkflowRevisionHistory | null>(null);
+  const [revisionHistoryLoading, setRevisionHistoryLoading] = useState(true);
+  const [revisionHistoryError, setRevisionHistoryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -139,12 +152,15 @@ export default function AdminManagePage() {
   const [selectedOffice, setSelectedOffice] = useState('');
   const [selectedOffices, setSelectedOffices] = useState<OfficeRole[]>([]);
   const [routeSteps, setRouteSteps] = useState<RouteStep[]>([]);
+  const [routePlanIds, setRoutePlanIds] = useState<string[]>([]);
   const [hasProposedRoute, setHasProposedRoute] = useState(false);
   const [routeReadyForCompletion, setRouteReadyForCompletion] = useState(false);
   const [routeLoadFailed, setRouteLoadFailed] = useState(false);
   const [archiveUpdating, setArchiveUpdating] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
   const [retentionDate, setRetentionDate] = useState('');
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(true);
 
   const toggleRouteOffice = (officeRole: OfficeRole) => {
     setSelectedOffices((current) => {
@@ -172,105 +188,76 @@ export default function AdminManagePage() {
   };
 
   const fetchDetails = useCallback(async () => {
+    setRevisionHistoryLoading(true);
+    setRevisionHistoryError(null);
     try {
-      const { data: submission } = await supabase
-        .from('workflow_submissions')
-        .select('*')
-        .eq('id', id)
-        .single();
+      if (typeof id !== 'string') throw new Error('Could not determine which submission to load.');
+      const detail = await loadWorkflowSubmissionDetail(supabase, id);
+      const submission = detail.submission;
+      setSub(submission);
+      setSender(detail.sender);
+      setAuditLogs(detail.activityLogs);
+      setAdminComment(submission.admin_comments || '');
+      setSelectedOffice(submission.selected_office_role || '');
+      setRetentionDate(submission.retention_until?.slice(0, 10) || '');
+      setRoutePlanIds(detail.routePlanIds);
+      setRouteLoadFailed(false);
+      setRevisionHistory(detail.revisionHistory);
+      setAttachments(detail.supportingFiles);
 
-      if (submission) {
-        setSub(submission);
-        setAdminComment(submission.admin_comments || '');
-        setSelectedOffice(submission.selected_office_role || '');
-        setRetentionDate(submission.retention_until?.slice(0, 10) || '');
-
-        const { data: currentRoute, error: routeError } = await supabase
-          .from('workflow_routing_plans')
-          .select('id, status')
-          .eq('submission_id', submission.id)
-          .eq('is_current', true)
-          .maybeSingle();
-        if (routeError) {
-          console.error('Could not load workflow route:', routeError.message);
-          setActionError('Could not load this request’s office route. Refresh and try again.');
-          setRouteLoadFailed(true);
-          setRouteSteps([]);
-          setHasProposedRoute(false);
-          setRouteReadyForCompletion(false);
-          setSelectedOffices(isOfficeRole(submission.selected_office_role)
-            ? [submission.selected_office_role]
-            : []);
-        } else if (currentRoute) {
-          const { data: steps, error: stepsError } = await supabase
-            .from('workflow_routing_steps')
-            .select('sequence_number, office_role, status, started_at, decided_at, completed_at')
-            .eq('routing_plan_id', currentRoute.id)
-            .order('sequence_number', { ascending: true });
-          if (stepsError) {
-            console.error('Could not load workflow route steps:', stepsError.message);
-            setActionError('Could not load this request’s office route. Refresh and try again.');
-            setRouteLoadFailed(true);
-            setRouteSteps([]);
-            setHasProposedRoute(false);
-            setRouteReadyForCompletion(false);
-            setSelectedOffices(isOfficeRole(submission.selected_office_role)
-              ? [submission.selected_office_role]
-              : []);
-          } else {
-            setRouteLoadFailed(false);
-            const validSteps = (steps ?? []).filter(
-              (step): step is RouteStep => isOfficeRole(step.office_role)
-            );
-            setRouteSteps(validSteps);
-            setSelectedOffices(validSteps.map((step) => step.office_role));
-            setHasProposedRoute(currentRoute.status === 'proposed');
-            setRouteReadyForCompletion(
-              currentRoute.status === 'finalized'
-              && validSteps.length > 0
-              && validSteps.every((step) => step.status === 'completed' || step.status === 'approved')
-            );
-          }
-        } else {
-          setRouteLoadFailed(false);
-          setRouteSteps([]);
-          setHasProposedRoute(false);
-          setRouteReadyForCompletion(false);
-          setSelectedOffices(isOfficeRole(submission.selected_office_role)
-            ? [submission.selected_office_role]
-            : []);
-        }
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email, full_name, role')
-          .eq('id', submission.user_id)
-          .single();
-        if (profile) setSender(profile);
-
-        const { data: logs } = await supabase
-          .from('workflow_audit_logs')
-          .select('*, profiles:action_by (full_name, email, role)')
-          .eq('submission_id', id)
-          .order('created_at', { ascending: false });
-        if (logs) setAuditLogs(logs);
-
-        const { data: supportingFiles, error: attachmentError } = await supabase
-          .from('workflow_submission_attachments')
-          .select('id, file_name, file_path, file_type, file_size')
-          .eq('submission_id', id)
-          .order('created_at', { ascending: true });
-        if (attachmentError) console.error('Could not load supporting attachments:', attachmentError.message);
-        setAttachments(supportingFiles ?? []);
+      const currentRoute = detail.currentRoute;
+      if (currentRoute) {
+        const validSteps = detail.routeSteps
+          .flatMap((step) => {
+            if (step.routing_plan_id !== currentRoute.id || !isOfficeRole(step.office_role)) return [];
+            return [{
+              sequence_number: step.sequence_number,
+              office_role: step.office_role,
+              status: step.status,
+              started_at: step.started_at,
+              decided_at: step.decided_at,
+              completed_at: step.completed_at,
+            }];
+          });
+        setRouteSteps(validSteps);
+        setSelectedOffices(validSteps.map((step) => step.office_role));
+        setHasProposedRoute(currentRoute.status === 'proposed');
+        setRouteReadyForCompletion(
+          currentRoute.status === 'finalized'
+          && validSteps.length > 0
+          && validSteps.every((step) => step.status === 'completed' || step.status === 'approved')
+        );
+      } else {
+        setRouteSteps([]);
+        setHasProposedRoute(false);
+        setRouteReadyForCompletion(false);
+        setSelectedOffices(isOfficeRole(submission.selected_office_role)
+          ? [submission.selected_office_role]
+          : []);
       }
     } catch (err) {
-      console.error('Failed to load submission:', err);
+      console.error('Failed to load submission detail:', err);
+      setActionError(err instanceof Error ? err.message : 'Could not load this submission.');
+      setRouteLoadFailed(true);
+      setRevisionHistoryError('Could not load the file version history. Refresh this page to try again.');
     } finally {
       setLoading(false);
+      setRevisionHistoryLoading(false);
     }
   }, [id, supabase]);
 
   useEffect(() => { fetchDetails(); }, [fetchDetails]);
+
+  const refreshSubmissionDetail = useCallback(() => {
+    void fetchDetails();
+  }, [fetchDetails]);
+
+  useSubmissionDetailRealtime(
+    supabase,
+    typeof id === 'string' ? id : null,
+    routePlanIds,
+    refreshSubmissionDetail,
+  );
 
   const handleAdminRoute = async () => {
     if (!sub || sub.status !== 'pending_admin') return;
@@ -338,7 +325,13 @@ export default function AdminManagePage() {
   const handleArchive = async () => {
     if (!sub) return;
     setArchiveUpdating(true);
+    setArchiveError('');
     const shouldArchive = !sub.archived_at;
+    if (shouldArchive && !isArchiveEligibleStatus(sub.status)) {
+      setArchiveError('Only approved or completed submissions can be archived.');
+      setArchiveUpdating(false);
+      return;
+    }
     const { error } = await supabase.rpc('set_workflow_submission_archive', {
       target_submission_id: id,
       should_archive: shouldArchive,
@@ -347,6 +340,7 @@ export default function AdminManagePage() {
 
     if (error) {
       console.error('Archive update failed:', error.message);
+      setArchiveError(error.message || 'Could not update archive status.');
     } else {
       await fetchDetails();
     }
@@ -390,6 +384,7 @@ export default function AdminManagePage() {
     : getStatusStyles(sub.status);
   const isFinalized = sub.status === 'completed' || sub.status.includes('declined');
   const isApproved = sub.status === 'approved';
+  const canArchive = isArchiveEligibleStatus(sub.status);
   const isPendingAdmin = sub.status === 'pending_admin' && !routeReadyForCompletion;
   const isRouteReadyForCompletion = sub.status === 'pending_admin' && routeReadyForCompletion;
 
@@ -710,13 +705,15 @@ export default function AdminManagePage() {
 
           {/* Secure Archive */}
           <section className="no-print rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-            <p className="mb-1 text-xs font-semibold text-warm-text">Secure archive</p>
+            <p className="mb-1 text-xs font-semibold text-warm-text">Archive</p>
             <p className="mb-4 text-xs leading-relaxed text-muted-text">
               {sub.archived_at
                 ? `Archived ${new Date(sub.archived_at).toLocaleString()}`
-                : 'This record is active and visible to authorized workflow users.'}
+                : canArchive
+                  ? 'This approved or completed submission is visible to authorized workflow users.'
+                  : 'Only approved or completed submissions can be archived.'}
             </p>
-            {!sub.archived_at && (
+            {!sub.archived_at && canArchive && (
               <div className="mb-4">
                 <label htmlFor="retention-date" className="mb-1.5 block text-[11px] font-medium text-muted-text">
                   Retention until
@@ -730,13 +727,20 @@ export default function AdminManagePage() {
                 />
               </div>
             )}
-            <button
-              onClick={handleArchive}
-              disabled={archiveUpdating}
-              className="inline-flex h-11 w-full items-center justify-center rounded-full border border-warm-border px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
-            >
-              {archiveUpdating ? 'Updating archive...' : sub.archived_at ? 'Restore from archive' : 'Archive record'}
-            </button>
+            {archiveError && (
+              <p role="alert" className="mb-3 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text">
+                {archiveError}
+              </p>
+            )}
+            {(sub.archived_at || canArchive) && (
+              <button
+                onClick={handleArchive}
+                disabled={archiveUpdating}
+                className="inline-flex h-11 w-full items-center justify-center rounded-full border border-warm-border px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
+              >
+                {archiveUpdating ? 'Updating archive...' : sub.archived_at ? 'Restore from archive' : 'Archive record'}
+              </button>
+            )}
           </section>
 
           <section className="no-print rounded-2xl border border-rejected-bg bg-rejected-bg/30 p-5 max-md:p-3.5">
@@ -789,18 +793,48 @@ export default function AdminManagePage() {
         {/* PREVIEW PANEL */}
         <main className="no-print lg:col-span-7">
           <div className="flex flex-col overflow-hidden rounded-2xl border border-warm-border bg-card lg:sticky lg:top-10">
-            <div className="flex min-h-12 items-center border-b border-warm-border px-5 py-3 max-md:px-3.5">
+            <div className="flex min-h-12 items-center justify-between gap-3 border-b border-warm-border px-5 py-3 max-md:px-3.5">
               <div className="flex min-w-0 flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">Document preview</span>
                 <span className="truncate text-[11px] font-medium text-warm-text">{sub.file_name}</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((open) => !open)}
+                aria-label={previewOpen ? 'Hide document preview' : 'Show document preview'}
+                aria-expanded={previewOpen}
+                aria-pressed={previewOpen}
+                aria-controls={`admin-document-preview-${sub.id}`}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors transition-transform ${
+                  previewOpen
+                    ? 'rotate-90 border-clay bg-clay-soft text-clay'
+                    : 'border-warm-border text-muted-text hover:bg-sidebar'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
             </div>
 
-            <div className="relative flex h-[60vh] min-h-[380px] items-center justify-center overflow-hidden bg-cream lg:h-[75vh]">
-              <FilePreview file={sub} />
+            <div id={`admin-document-preview-${sub.id}`} hidden={!previewOpen}>
+              {previewOpen && (
+                <div className="relative flex h-[60vh] min-h-[380px] items-center justify-center overflow-hidden bg-cream lg:h-[75vh]">
+                  <FilePreview file={sub} />
+                </div>
+              )}
             </div>
           </div>
         </main>
+      </div>
+
+      <div className="no-print">
+        <WorkflowRevisionTimeline
+          history={revisionHistory}
+          loading={revisionHistoryLoading}
+          error={revisionHistoryError}
+        />
       </div>
 
       <style jsx global>{`
