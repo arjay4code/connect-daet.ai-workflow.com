@@ -13,5 +13,6 @@ values
   ('municipal_treasurer', 'Request for Market Stall Rental Assessment'),
   ('municipal_treasurer', 'Request for Business Permit Payment Assessment'),
   ('municipal_treasurer', 'Request for Certification of No Tax Liability'),
-  ('municipal_treasurer', 'Request for Trust Fund or Deposit Certification')
+  ('municipal_treasurer', 'Request for Trust Fund or Deposit Certification'),
+  ('municipal_treasurer', 'Other')
 on conflict (office_role, document_type) do nothing;

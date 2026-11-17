@@ -13,5 +13,6 @@ values
   ('mayor_office', 'Request for Authority to Conduct an Event'),
   ('mayor_office', 'Request for Certificate of Appreciation'),
   ('mayor_office', 'Request for Executive Clearance'),
-  ('mayor_office', 'Request for Official Communication')
+  ('mayor_office', 'Request for Official Communication'),
+  ('mayor_office', 'Other')
 on conflict (office_role, document_type) do nothing;

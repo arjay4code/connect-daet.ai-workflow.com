@@ -43,14 +43,6 @@ begin
   ) then
     raise exception 'Select a valid destination office';
   end if;
-  if not exists (
-    select 1
-    from public.workflow_office_document_types document_type
-    where document_type.office_role = submission_office_role
-      and document_type.document_type = submission_document_type
-  ) then
-    raise exception 'Select a document type available for the destination office';
-  end if;
   if submission_document_type = 'Other' then
     if normalized_other_document_type is null
       or length(normalized_other_document_type) > 120 then
@@ -58,6 +50,15 @@ begin
     end if;
   elsif normalized_other_document_type is not null then
     raise exception 'A custom document type is only allowed when Other is selected';
+  end if;
+
+  if submission_document_type <> 'Other' and not exists (
+    select 1
+    from public.workflow_office_document_types document_type
+    where document_type.office_role = submission_office_role
+      and document_type.document_type = submission_document_type
+  ) then
+    raise exception 'Select a document type available for the destination office';
   end if;
   if submission_file_path not like (auth.uid()::text || '/%')
     or attachment_records is null
