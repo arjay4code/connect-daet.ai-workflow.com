@@ -40,7 +40,7 @@ test('storage cleanup policies allow administrators to delete linked workflow fi
   assert.match(migration, /bucket_id = 'workflow_message_attachments'\s+and public\.is_workflow_admin\(\)/);
 });
 
-test('admin deletion requires an irreversible-action confirmation and is available from list and detail', async () => {
+test('admin deletion requires confirmation and remains available from the registry only', async () => {
   const [button, list, detail] = await Promise.all([
     readFile(deleteButtonUrl, 'utf8'),
     readFile(adminListUrl, 'utf8'),
@@ -52,6 +52,6 @@ test('admin deletion requires an irreversible-action confirmation and is availab
   assert.match(button, /admin_delete_workflow_submission/);
   assert.match(button, /uploaded files could not be removed/);
   assert.match(list, /<AdminDeleteSubmissionButton/);
-  assert.match(detail, /Permanently delete submission/);
-  assert.match(detail, /<AdminDeleteSubmissionButton/);
+  assert.doesNotMatch(detail, /AdminDeleteSubmissionButton|delete_workflow_submission/);
+  assert.match(detail, /<OfficeSubmissionDetail readOnly/);
 });

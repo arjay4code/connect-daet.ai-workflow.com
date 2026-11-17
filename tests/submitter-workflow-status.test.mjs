@@ -53,7 +53,7 @@ test('submitter detail loads route history through the shared detail RPC and ren
   assert.doesNotMatch(page, /Review update|Official feedback/);
 });
 
-test('office and admin preview controls highlight only their toggles while open', () => {
+test('office and admin details share the preview presentation and admin details are read-only', () => {
   const officePreviewButton = officeDetail.slice(
     officeDetail.indexOf('onClick={() => setPreviewOpen((open) => !open)}'),
     officeDetail.indexOf('</button>', officeDetail.indexOf('onClick={() => setPreviewOpen((open) => !open)}')),
@@ -62,11 +62,10 @@ test('office and admin preview controls highlight only their toggles while open'
   assert.match(officePreviewButton, /className=\{`grid h-9 w-9[\s\S]*?border-clay bg-clay-soft text-clay/);
   assert.match(officePreviewButton, /className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"/);
 
-  assert.match(adminDetail, /const \[previewOpen, setPreviewOpen\] = useState\(true\);/);
-  assert.match(adminDetail, /aria-label=\{previewOpen \? 'Hide document preview' : 'Show document preview'\}/);
-  assert.match(adminDetail, /aria-pressed=\{previewOpen\}/);
-  assert.match(adminDetail, /className=\{`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors[\s\S]*?border-clay bg-clay-soft text-clay/);
-  assert.match(adminDetail, /id=\{`admin-document-preview-\$\{sub\.id\}`\} hidden=\{!previewOpen\}/);
+  assert.match(adminDetail, /<OfficeSubmissionDetail readOnly/);
+  assert.match(officeDetail, /readOnly = false/);
+  assert.match(officeDetail, /showWorkflowActions: !readOnly/);
+  assert.match(officeDetail, /readOnly=\{readOnly\}/);
 });
 
 test('detail RPC masks office-private route comments from submitters', () => {
