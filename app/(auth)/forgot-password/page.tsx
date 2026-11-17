@@ -43,7 +43,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-cream px-4 py-12">
+    <div className="workflow-system flex min-h-screen items-center justify-center bg-cream px-4 py-12">
       <div className="w-full max-w-[380px]">
         <div className="mb-8 text-center">
           <h1 className="font-serif text-[32px] leading-tight text-warm-text">Reset your password</h1>
@@ -80,14 +80,14 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50"
+              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[#2563eb] px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50"
             >
               {loading ? 'Sending...' : 'Send reset link'}
             </button>
           </form>
         </section>
         <p className="mt-4 text-center text-xs text-muted-text">
-          <Link href="/login" className="font-semibold text-clay hover:text-warm-text">Back to login</Link>
+          <Link href="/login" className="font-semibold text-[#2563eb] hover:text-warm-text">Back to login</Link>
         </p>
       </div>
     </div>

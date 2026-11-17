@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import OfficeDashboard from '@/components/OfficeDashboard';
 import OfficeNotificationsPage from '@/components/OfficeNotificationsPage';
+<<<<<<< HEAD
 import WorkflowNotificationArchive from '@/components/WorkflowNotificationArchive';
+=======
+>>>>>>> f43d4a39e6b0d9fa38d584cc27141cec99e315c4
 import WorkflowArchive from '@/components/WorkflowArchive';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import { isOfficeRole, type OfficeRole } from '@/lib/workflow/offices';
@@ -12,8 +15,7 @@ type ReviewerWorkspaceView =
   | 'dashboard'
   | 'file-management'
   | 'archive'
-  | 'notifications'
-  | 'notification-archive';
+  | 'notifications';
 
 export default function ReviewerWorkspace({ view }: { view: ReviewerWorkspaceView }) {
   const currentRole = useWorkflowRole();
@@ -56,8 +58,5 @@ export default function ReviewerWorkspace({ view }: { view: ReviewerWorkspaceVie
   if (view === 'archive') {
     return <WorkflowArchive role={role} adminOfficeView={currentRole === 'system_admin'} />;
   }
-  if (view === 'notifications') {
-    return <OfficeNotificationsPage role={role} />;
-  }
-  return <WorkflowNotificationArchive role={role} />;
+  return <OfficeNotificationsPage role={role} />;
 }

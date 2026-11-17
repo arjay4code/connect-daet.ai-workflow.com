@@ -1,12 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-
 export type NotificationFilter = 'all' | 'unread';
 
 export default function WorkflowNotificationControls({
   filter,
-  archiveHref,
   onFilterChange,
   notificationCount,
   unreadCount,
@@ -19,7 +16,6 @@ export default function WorkflowNotificationControls({
   onClearNotifications,
 }: {
   filter: NotificationFilter;
-  archiveHref: string;
   onFilterChange: (filter: NotificationFilter) => void;
   notificationCount: number;
   unreadCount: number;
@@ -32,7 +28,7 @@ export default function WorkflowNotificationControls({
   onClearNotifications: () => void;
 }) {
   const clearNotifications = () => {
-    if (window.confirm('Clear notifications addressed to your account? They will move to your personal notification archive. This does not delete submissions or workflow history.')) {
+    if (window.confirm('Permanently delete notifications addressed to your account? This removes notification records only, not submissions or workflow history.')) {
       onClearNotifications();
     }
   };
@@ -61,16 +57,6 @@ export default function WorkflowNotificationControls({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href={archiveHref}
-          aria-label="View notification archive"
-          title="View notification archive"
-          className="grid h-9 w-9 place-items-center rounded-full border border-warm-border text-warm-text transition-colors hover:bg-sidebar"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8h18v11H3zM3 8l2-4h14l2 4M9 12h6" />
-          </svg>
-        </Link>
         <button
           type="button"
           onClick={onMarkAllRead}
@@ -85,7 +71,7 @@ export default function WorkflowNotificationControls({
           disabled={busy}
           className="rounded-full border border-warm-border px-3 py-2 text-[10px] font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? 'Updating…' : 'Clear'}
+          {busy ? 'Updating…' : 'Delete'}
         </button>
         <div className="flex items-center gap-1">
           <button

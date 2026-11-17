@@ -9,7 +9,6 @@ export default async function Home({
   if (typeof code === 'string' && code.length > 0) {
     const callbackParams = new URLSearchParams({
       code,
-      next: '/reset-password',
     });
     redirect(`/auth/callback?${callbackParams.toString()}`);
   }

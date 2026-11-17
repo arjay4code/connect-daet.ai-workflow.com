@@ -1315,7 +1315,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           )}
           <div id={`document-preview-${sub.id}`} hidden={!previewOpen}>
             {previewOpen && (
-              <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8">
+              <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
                 <FilePreview file={sub} />
               </div>
             )}

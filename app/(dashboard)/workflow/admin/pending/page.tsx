@@ -16,7 +16,7 @@ export default function PendingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-cream p-6">
+    <div className="min-h-screen bg-cream p-6 max-md:p-4">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-warm-text">My Pending Reviews</h1>
         <p className="mt-1 text-sm text-muted-text">
@@ -24,7 +24,7 @@ export default function PendingPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl bg-card p-6 shadow">
+      <div className="rounded-2xl bg-card p-6 shadow max-md:p-3.5">
         {loading ? (
           <p className="text-muted-text">Loading submissions...</p>
         ) : submissions.length === 0 ? (
@@ -32,19 +32,20 @@ export default function PendingPage() {
             <p className="text-muted-text">No pending submissions for your review.</p>
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-warm-border text-xs uppercase text-muted-text">
-                <th className="pb-3">File</th>
-                <th className="pb-3">Uploaded By</th>
-                <th className="pb-3">Type</th>
-                <th className="pb-3">Date</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submissions.map((sub) => (
+          <div className="max-lg:overflow-x-auto">
+            <table className="w-full max-lg:min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-warm-border text-xs uppercase text-muted-text">
+                  <th className="pb-3">File</th>
+                  <th className="pb-3">Uploaded By</th>
+                  <th className="pb-3">Type</th>
+                  <th className="pb-3">Date</th>
+                  <th className="pb-3">Status</th>
+                  <th className="pb-3">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submissions.map((sub) => (
                   <tr key={sub.id} className="border-b border-warm-border last:border-0 hover:bg-sidebar">
                     <td className="py-3">
                       <span
@@ -73,9 +74,10 @@ export default function PendingPage() {
                       </Link>
                     </td>
                   </tr>
-              ))}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

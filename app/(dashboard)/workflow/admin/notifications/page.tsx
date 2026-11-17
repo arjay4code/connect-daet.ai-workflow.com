@@ -17,6 +17,7 @@ interface AdminNotification {
   id: string;
   submission_id: string;
   notification_id: string;
+  recipient_id: string;
   user_id: string | null;
   updated_at: string;
   event_type?: string | null;
@@ -30,6 +31,7 @@ interface AdminNotification {
   user_email?: string | null;
   is_new: boolean;
   is_unread: boolean;
+  is_own_notification: boolean;
 }
 
 // Maps a notification event to the status it represents
@@ -99,41 +101,17 @@ export default function AdminNotificationsPage() {
       );
       if (error) throw error;
       const rows = data || [];
-      const [
-        { data: dismissed, error: dismissedError },
-        { data: archived, error: archiveError },
-      ] = rows.length
-        ? await Promise.all([
-          supabase
-            .from('workflow_notification_dismissals')
-            .select('notification_id')
-            .eq('user_id', user.id)
-            .in('notification_id', rows.map((notification) => notification.id)),
-          supabase
-            .from('workflow_notification_archives')
-            .select('notification_id')
-            .eq('user_id', user.id)
-            .in('notification_id', rows.map((notification) => notification.id)),
-        ])
-        : [
-          { data: [], error: null },
-          { data: [], error: null },
-        ];
-      if (dismissedError) throw dismissedError;
-      if (archiveError) throw archiveError;
-      const dismissedIds = new Set((dismissed || []).map((item) => item.notification_id));
-      const archivedIds = new Set((archived || []).map((item) => item.notification_id));
 
       // Keep only the latest notification per submission
       const latestBySubmission = new Map<string, AdminNotification>();
       rows.forEach((notification) => {
-        if (dismissedIds.has(notification.id) || archivedIds.has(notification.id)) return;
         if (!latestBySubmission.has(notification.submission_id)) {
           latestBySubmission.set(notification.submission_id, {
             ...notification.workflow_submissions,
             id: notification.submission_id,
             submission_id: notification.submission_id,
             notification_id: notification.id,
+            recipient_id: notification.recipient_id,
             updated_at: notification.created_at,
             notification_title: notification.title,
             notification_message: notification.message,
@@ -144,6 +122,7 @@ export default function AdminNotificationsPage() {
             ),
             is_new: Date.now() - new Date(notification.created_at).getTime() < NEW_WINDOW_MS,
             is_unread: notification.recipient_id === user.id && !notification.read_at,
+            is_own_notification: notification.recipient_id === user.id,
           });
         }
       });
@@ -194,16 +173,43 @@ export default function AdminNotificationsPage() {
     setActionBusy(true);
     setErrorMessage(null);
     try {
-      const { error } = await supabase.rpc('archive_all_workflow_notifications');
-      if (error) {
-        setErrorMessage(error.message);
-        return;
-      }
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError || new Error('Sign in before deleting notifications.');
+      const { error } = await supabase
+        .from('workflow_notifications')
+        .delete()
+        .eq('recipient_id', user.id);
+      if (error) throw error;
       window.dispatchEvent(new Event('workflow-notifications-changed'));
       setPage(0);
       await fetchNotifications(0);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Could not archive notifications.');
+      setErrorMessage(error instanceof Error ? error.message : 'Could not delete notifications.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    if (!window.confirm('Delete this notification permanently? The submission and workflow history will not be deleted.')) return;
+    setActionBusy(true);
+    setErrorMessage(null);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError || new Error('Sign in before deleting notifications.');
+      const { data, error } = await supabase
+        .from('workflow_notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('recipient_id', user.id)
+        .select('id')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Notification not found or you do not have permission to delete it.');
+      setNotifications((current) => current.filter((notification) => notification.notification_id !== notificationId));
+      window.dispatchEvent(new Event('workflow-notifications-changed'));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not delete the notification.');
     } finally {
       setActionBusy(false);
     }
@@ -246,7 +252,6 @@ export default function AdminNotificationsPage() {
 
       <WorkflowNotificationControls
         filter={filter}
-        archiveHref="/workflow/admin/notifications/archive"
         onFilterChange={(nextFilter) => {
           setFilter(nextFilter);
           setPage(0);
@@ -327,6 +332,17 @@ export default function AdminNotificationsPage() {
                     <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                     {status.label}
                   </div>
+                  {note.is_own_notification && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteNotification(note.notification_id)}
+                      disabled={actionBusy}
+                      aria-label={`Delete notification for ${note.file_name || 'submission'}`}
+                      className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50 max-md:h-11 max-md:w-full"
+                    >
+                      Delete notification
+                    </button>
+                  )}
                   <Link
                     href={`/workflow/admin/submissions/${note.id}`}
                     className="inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full max-md:justify-center"

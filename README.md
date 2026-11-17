@@ -168,6 +168,7 @@ offices' QR codes.
 
 For account verification, enable email confirmations in Supabase
 Authentication settings, set the project Site URL to the production app origin,
+<<<<<<< HEAD
 and allow both `/auth/callback?flow=confirmation` and
 `/auth/callback?flow=recovery` for each app origin:
 `http://localhost:3000`, `http://<computer-lan-ip>:3000` when testing from
@@ -181,13 +182,26 @@ The Supabase **Confirm signup** email template must include a clickable
 `{{ .ConfirmationURL }}` link. The **Reset password** template must also include
 its `{{ .ConfirmationURL }}` link; do not hard-code the reset route into the
 confirmation template or vice versa.
+=======
+and allow the callback URLs `http://localhost:3000/auth/callback`,
+`http://<computer-lan-ip>:3000/auth/callback` when testing from another device,
+and `https://<your-app-domain>/auth/callback` (plus any additional deployed
+environments). Also allow `http://localhost:3000/auth/password-recovery/callback`,
+`http://<computer-lan-ip>:3000/auth/password-recovery/callback`, and
+`https://<your-app-domain>/auth/password-recovery/callback` for password-reset
+links. Set `NEXT_PUBLIC_APP_URL` to the same origin used by the browser; Supabase
+must allow each callback redirect. Registration and resend-confirmation links
+use `/auth/callback`.
+>>>>>>> f43d4a39e6b0d9fa38d584cc27141cec99e315c4
 Supabase Auth remains the source of truth for verification; the application
 blocks unconfirmed accounts from workflow pages and the protected file API.
-Password recovery uses the same `/auth/callback` allowlist and then returns to
-`/reset-password`; configure Supabase's recovery email template to use its
-standard secure recovery link. Recovery requests are issued through the
-server-side `/api/auth/password/request` handler and callback exchange before
-the password-change endpoint accepts an update.
+Password recovery uses the dedicated `/auth/password-recovery/callback` allowlist
+entry, which forwards the recovery code to `/auth/callback` with the
+`/reset-password` destination. This avoids relying on a query string being
+accepted by an exact redirect allowlist entry. Configure Supabase's recovery
+email template to use its standard secure recovery link. Recovery requests are
+issued through the server-side `/api/auth/password/request` handler and callback
+exchange before the password-change endpoint accepts an update.
 
 Workflow completion emails are sent through the email outbox and scheduled
 SendGrid processor. Email delivery runs automatically and is separate from the
