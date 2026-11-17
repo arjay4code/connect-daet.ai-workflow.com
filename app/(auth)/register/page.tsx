@@ -51,7 +51,7 @@ export default function RegisterPage() {
       email: normalizedEmail,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation`,
         data: {
           full_name: trimmedName,
           role: 'submitter',

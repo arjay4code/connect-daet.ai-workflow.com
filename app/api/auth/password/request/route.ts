@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
   );
   const redirectTo = new URL('/auth/callback', applicationOrigin);
-  redirectTo.searchParams.set('next', '/reset-password');
+  redirectTo.searchParams.set('flow', 'recovery');
   const { error } = await supabase.auth.resetPasswordForEmail(
     normalizedEmail,
     { redirectTo: redirectTo.toString() }

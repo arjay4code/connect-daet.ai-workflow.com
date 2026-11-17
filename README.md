@@ -151,19 +151,36 @@ scheduled the processor; create the named secrets first, then rerun the
 migration. Provider API acceptance is recorded as `accepted`; only a verified
 webhook records delivery. Password-reset emails continue through Supabase Auth
 and are unaffected by this workflow-email change.
+Because the processor runs once per minute, queued notification emails may
+wait up to about a minute before sending. If an email does not arrive, inspect
+the outbox status and Edge Function logs: `queued` points to scheduling or
+worker execution, `failed` includes the provider error, and `accepted` means
+SendGrid accepted the message but does not confirm inbox delivery.
 Set `NEXT_PUBLIC_APP_URL` to the canonical application origin used to build
 retrieval QR links. For local testing from a phone, use a LAN-reachable address
 such as `http://<computer-lan-ip>:3000` and open the application through that
 address on the phone; `localhost` always refers to the device opening the link.
+Retrieval QR codes are assigned to the office that completed the finalized
+route. Only a signed-in member of that same office can scan them. Apply
+`20261117132400_allow_tourism_assigned_retrieval_qr.sql` to allow Tourism to
+receive and scan Tourism-assigned QR codes without granting it access to other
+offices' QR codes.
 
 For account verification, enable email confirmations in Supabase
 Authentication settings, set the project Site URL to the production app origin,
-and allow the callback URLs `http://localhost:3000/auth/callback`,
-`http://<computer-lan-ip>:3000/auth/callback` when testing from another device,
-and `https://<your-app-domain>/auth/callback` (plus any additional deployed
-environments). Set `NEXT_PUBLIC_APP_URL` to the same origin used by the browser;
-Supabase must allow its `/auth/callback` redirect. Registration and
-resend-confirmation links use this callback.
+and allow both `/auth/callback?flow=confirmation` and
+`/auth/callback?flow=recovery` for each app origin:
+`http://localhost:3000`, `http://<computer-lan-ip>:3000` when testing from
+another device, and `https://<your-app-domain>` (plus any additional deployed
+environments). Set `NEXT_PUBLIC_APP_URL` to the same canonical HTTPS origin used
+by the deployed app; Supabase must allow the callback redirects. Registration
+and resend-confirmation links use `flow=confirmation`; password reset links use
+`flow=recovery`. The callback still accepts legacy reset links using
+`next=/reset-password`.
+The Supabase **Confirm signup** email template must include a clickable
+`{{ .ConfirmationURL }}` link. The **Reset password** template must also include
+its `{{ .ConfirmationURL }}` link; do not hard-code the reset route into the
+confirmation template or vice versa.
 Supabase Auth remains the source of truth for verification; the application
 blocks unconfirmed accounts from workflow pages and the protected file API.
 Password recovery uses the same `/auth/callback` allowlist and then returns to
