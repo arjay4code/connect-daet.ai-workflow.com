@@ -5,8 +5,8 @@ import { useRef, useState, type MouseEvent, type TouchEvent, type ReactNode } fr
 export default function SwipeDismissNotification({
   children,
   onDismiss,
-  label = 'Archive notification',
-  actionText = 'Archive',
+  label = 'Delete notification',
+  actionText = 'Delete',
   busy = false,
 }: {
   children: ReactNode;
@@ -91,7 +91,9 @@ export default function SwipeDismissNotification({
         title={label}
         className="absolute right-2 top-2 z-20 grid h-9 w-9 place-items-center rounded-full border border-warm-border bg-card text-muted-text transition-colors hover:bg-rejected-bg hover:text-rejected-text disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span aria-hidden="true" className="text-xl leading-none">−</span>
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6m4-6v6M5 7l1 13h12l1-13M9 7V4h6v3" />
+        </svg>
       </button>
     </div>
   );

@@ -23,7 +23,6 @@ test('all office pages now share the reviewer route tree', async () => {
     'file_management/page.tsx',
     'file_management/[id]/page.tsx',
     'notifications/page.tsx',
-    'notifications/archive/page.tsx',
   ];
   await Promise.all(routes.map((route) => access(new URL(route, root))));
   assert.equal((workflow.match(/path: '\/workflow\/reviewer'/g) ?? []).length, 4);

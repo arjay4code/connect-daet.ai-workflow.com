@@ -144,17 +144,7 @@ export default function NotificationsPage() {
 
       const rows = data || [];
       const pageRows = rows.slice(0, PAGE_SIZE);
-      const { data: archived, error: archiveError } = pageRows.length
-        ? await supabase
-          .from('workflow_notification_archives')
-          .select('notification_id')
-          .eq('user_id', user.id)
-          .in('notification_id', pageRows.map((notification) => notification.id))
-        : { data: [], error: null };
-      if (archiveError) throw archiveError;
-      const archivedIds = new Set((archived || []).map((item) => item.notification_id));
       const pageNotifications: UserNotification[] = pageRows
-        .filter((notification) => !archivedIds.has(notification.id))
         .map((notification) => ({
             ...notification.workflow_submissions,
             id: notification.submission_id,
@@ -196,19 +186,26 @@ export default function NotificationsPage() {
     }
   }, [supabase]);
 
-  const archiveNotification = async (notificationId: string) => {
-    if (actionBusy) return;
+  const deleteNotification = async (notificationId: string) => {
+    if (actionBusy || !window.confirm('Delete this notification permanently? The submission and workflow history will not be deleted.')) return;
     setActionBusy(true);
     setErrorMessage(null);
     try {
-      const { error } = await supabase.rpc('archive_workflow_notification', {
-        target_notification_id: notificationId,
-      });
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError || new Error('Sign in before deleting notifications.');
+      const { data, error } = await supabase
+        .from('workflow_notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('recipient_id', user.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Notification not found or you do not have permission to delete it.');
       setNotifications((current) => current.filter((notification) => notification.notification_id !== notificationId));
       window.dispatchEvent(new Event('workflow-notifications-changed'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Could not archive the notification.'));
+      setErrorMessage(getErrorMessage(error, 'Could not delete the notification.'));
     } finally {
       setActionBusy(false);
     }
@@ -218,14 +215,19 @@ export default function NotificationsPage() {
     setActionBusy(true);
     setErrorMessage(null);
     try {
-      const { error } = await supabase.rpc('archive_all_workflow_notifications');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError || new Error('Sign in before deleting notifications.');
+      const { error } = await supabase
+        .from('workflow_notifications')
+        .delete()
+        .eq('recipient_id', user.id);
       if (error) throw error;
       setNotifications([]);
       setCursor(null);
       setHasMore(false);
       window.dispatchEvent(new Event('workflow-notifications-changed'));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, 'Could not archive notifications.'));
+      setErrorMessage(getErrorMessage(error, 'Could not delete notifications.'));
     } finally {
       setActionBusy(false);
     }
@@ -297,14 +299,12 @@ export default function NotificationsPage() {
         </header>
 
         <WorkflowNotificationFeed
-          archiveHref="/workflow/user/notifications/archive"
-          archiveIconOnly
           busy={actionBusy || loading}
           canClear={notifications.length > 0}
           hasMore={hasMore}
           loading={loading}
-          actionLabel="Clear"
-          actionConfirmation="Clear all notifications from this feed? They will be moved to your archive, where you can permanently delete them."
+          actionLabel="Delete all"
+          actionConfirmation="Permanently delete all your notifications? This removes notification records only, not submissions or workflow history."
           onClear={clearNotifications}
           onLoadMore={() => fetchNotifications(cursor, true)}
         >
@@ -337,8 +337,9 @@ export default function NotificationsPage() {
                     return (
                       <SwipeDismissNotification
                         key={note.notification_id}
-                        onDismiss={() => void archiveNotification(note.notification_id)}
-                        label={`Archive notification for ${note.file_name || 'submission'}`}
+                        onDismiss={() => void deleteNotification(note.notification_id)}
+                        label={`Delete notification for ${note.file_name || 'submission'}`}
+                        actionText="Delete"
                         busy={actionBusy}
                       >
                         <Link
