@@ -5,9 +5,10 @@ import test from 'node:test';
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('root auth callback does not turn email confirmation codes into password recovery', async () => {
-  const [home, callback] = await Promise.all([
+  const [home, callback, callbackFlow] = await Promise.all([
     read('../app/page.tsx'),
     read('../app/auth/callback/route.ts'),
+    read('../lib/auth/callback-flow.ts'),
   ]);
 
   assert.match(home, /redirect\(`\/auth\/callback\?\$\{callbackParams\.toString\(\)\}`\)/);
