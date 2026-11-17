@@ -114,7 +114,7 @@ export default function LoginPage() {
     const { error: resendError } = await supabase.auth.resend({
       type: 'signup',
       email: normalizedEmail,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation` },
     });
     if (resendError) {
       setError('We could not send a confirmation email right now. Please try again later.');

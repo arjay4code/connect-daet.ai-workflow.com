@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import { getAuthCallbackFlow } from '@/lib/auth/callback-flow';
 
 export async function GET(request: NextRequest) {
   const callbackCode = request.nextUrl.searchParams.get('code');
-  const isPasswordRecovery = request.nextUrl.searchParams.get('next') === '/reset-password';
+  const isPasswordRecovery =
+    getAuthCallbackFlow(request.nextUrl.searchParams) === 'recovery';
   const redirectUrl = new URL('/login', request.url);
   const response = NextResponse.redirect(redirectUrl);
 

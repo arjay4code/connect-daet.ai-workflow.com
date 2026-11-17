@@ -21,6 +21,37 @@ type UploadMessage = {
   type: 'success' | 'error';
 };
 
+function getUploadErrorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+
+  if (error && typeof error === 'object') {
+    const candidate = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof candidate.message === 'string' ? candidate.message : null,
+      typeof candidate.details === 'string' ? candidate.details : null,
+      typeof candidate.hint === 'string' ? candidate.hint : null,
+      typeof candidate.code === 'string' ? `Code: ${candidate.code}` : null,
+    ].filter((part): part is string => Boolean(part));
+
+    if (parts.length > 0) return parts.join(' ');
+
+    try {
+      return JSON.stringify(error, null, 2);
+    } catch {
+      return 'An unexpected upload error occurred.';
+    }
+  }
+
+  if (typeof error === 'string') return error;
+  return 'An unexpected upload error occurred.';
+}
+
 export default function UploadPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -235,26 +266,20 @@ export default function UploadPage() {
       });
       setTimeout(() => router.push('/workflow/user'), 1500);
     } catch (error: unknown) {
-      console.error('Upload error:', error);
       if (uploadedFilePaths.length > 0) {
         try {
           const { error: cleanupError } = await supabase.storage
             .from('workflow_uploads')
             .remove(uploadedFilePaths);
           if (cleanupError) {
-            console.error('Uploaded file cleanup error:', cleanupError);
+            // Intentionally silent: validation failures should show only the user-facing message.
           }
-        } catch (cleanupError) {
-          console.error('Uploaded file cleanup error:', cleanupError);
+        } catch {
+          // Intentionally silent: validation failures should show only the user-facing message.
         }
       }
 
-      const errorText =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error !== null && 'message' in error
-            ? String(error.message)
-            : 'An unexpected upload error occurred.';
+      const errorText = getUploadErrorText(error);
       setMessage({ text: errorText, type: 'error' });
       setUploading(false);
     }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import OfficeDashboard from '@/components/OfficeDashboard';
 import OfficeNotificationsPage from '@/components/OfficeNotificationsPage';
+import WorkflowNotificationArchive from '@/components/WorkflowNotificationArchive';
 import WorkflowArchive from '@/components/WorkflowArchive';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import { isOfficeRole, type OfficeRole } from '@/lib/workflow/offices';
