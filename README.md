@@ -142,11 +142,14 @@ recipient greetings, and role-appropriate links. Existing workflow
 notifications, including message notifications, are queued automatically;
 email message notices link to the conversation without including private
 message contents. Set `APP_BASE_URL` to the canonical application origin for
-secure document links in notification emails. After deploying the function,
-applying the email migrations (including
-`20261110032000_switch_workflow_email_to_sendgrid.sql`) and creating both Vault secrets, apply
-`20261110033000_schedule_workflow_email_edge_function.sql` to run the processor
-every minute. If that migration reports missing Vault secrets, it has not
+secure document links in notification emails. After deploying the function and
+applying all email migrations, including
+`20261110032000_switch_workflow_email_to_sendgrid.sql` and
+`20261117140000_fix_workflow_email_action_paths.sql`, ensure
+`20261110033000_schedule_workflow_email_edge_function.sql` has been applied to
+run the processor every minute. The action-path migration also corrects links
+on queued and retryable email jobs for the current role names. If the scheduling
+migration reports missing Vault secrets, it has not
 scheduled the processor; create the named secrets first, then rerun the
 migration. Provider API acceptance is recorded as `accepted`; only a verified
 webhook records delivery. Password-reset emails continue through Supabase Auth
@@ -168,15 +171,18 @@ offices' QR codes.
 
 For account verification, enable email confirmations in Supabase
 Authentication settings, set the project Site URL to the production app origin,
-and allow both `/auth/callback?flow=confirmation` and
-`/auth/callback?flow=recovery` for each app origin:
+and allow `/auth/callback?flow=confirmation` for each app origin:
 `http://localhost:3000`, `http://<computer-lan-ip>:3000` when testing from
 another device, and `https://<your-app-domain>` (plus any additional deployed
 environments). Set `NEXT_PUBLIC_APP_URL` to the same canonical HTTPS origin used
 by the deployed app; Supabase must allow the callback redirects. Registration
-and resend-confirmation links use `flow=confirmation`; password reset links use
-`flow=recovery`. The callback still accepts legacy reset links using
-`next=/reset-password`.
+and resend-confirmation links use `flow=confirmation`. Password-reset links use
+the dedicated `/auth/password-recovery/callback` URL without a query string;
+allow that path for the same app origins. The callback then forwards the
+recovery code to `/auth/callback` with `next=/reset-password`. Keep
+`/auth/callback?flow=recovery` allowed temporarily if existing, unexpired reset
+emails were generated before this change. The callback continues to accept
+those older links.
 The Supabase **Confirm signup** email template must include a clickable
 `{{ .ConfirmationURL }}` link. The **Reset password** template must also include
 its `{{ .ConfirmationURL }}` link; do not hard-code the reset route into the

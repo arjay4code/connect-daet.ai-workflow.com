@@ -12,7 +12,7 @@ test('root auth callback does not turn email confirmation codes into password re
 
   assert.match(home, /redirect\(`\/auth\/callback\?\$\{callbackParams\.toString\(\)\}`\)/);
   assert.doesNotMatch(home, /next:\s*'\/reset-password'/);
-  assert.match(callback, /searchParams\.get\('next'\)\s*===\s*'\/reset-password'/);
+  assert.match(callback, /getAuthCallbackFlow\(request\.nextUrl\.searchParams\)/);
   assert.match(callback, /redirectUrl\.searchParams\.set\('verified',\s*'1'\)/);
 });
 
@@ -24,8 +24,8 @@ test('registration confirmation and password recovery keep distinct callback des
     read('../app/auth/password-recovery/callback/route.ts'),
   ]);
 
-  assert.match(registration, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
-  assert.match(login, /type:\s*'signup'[\s\S]*emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
+  assert.match(registration, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback\?flow=confirmation`/);
+  assert.match(login, /type:\s*'signup'[\s\S]*emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback\?flow=confirmation`/);
   assert.match(recovery, /new URL\('\/auth\/password-recovery\/callback',\s*applicationOrigin\)/);
   assert.match(recoveryCallback, /searchParams\.forEach/);
   assert.match(recoveryCallback, /callbackUrl\.searchParams\.set\('next',\s*'\/reset-password'\)/);
