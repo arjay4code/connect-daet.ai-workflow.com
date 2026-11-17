@@ -64,13 +64,14 @@ test('detail RPC validates active authorized access and returns revision history
   assert.doesNotMatch(migration, /'signed_url'\s*,/i);
 });
 
-test('all authorized detail views load the shared revision timeline as a standalone panel', () => {
-  for (const page of [submitterPage, officePage, adminPage]) {
+test('admin detail delegates to the shared read-only office layout with revision history', () => {
+  for (const page of [submitterPage, officePage]) {
     assert.match(page, /loadWorkflowSubmissionDetail/);
     assert.match(page, /<WorkflowRevisionTimeline/);
     assert.match(page, /useSubmissionDetailRealtime/);
     assert.ok(page.indexOf('<DocumentMessaging') < page.indexOf('<WorkflowRevisionTimeline'));
   }
+  assert.match(adminPage, /<OfficeSubmissionDetail readOnly/);
 });
 
 test('initial and legacy submissions receive a current revision and supporting files', () => {

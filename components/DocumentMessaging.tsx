@@ -168,6 +168,7 @@ interface DocumentMessagingProps {
   defaultAssignmentStepId?: string | null;
   showSubmitterConversation?: boolean;
   canSendSubmitterConversation?: boolean;
+  readOnly?: boolean;
   workflowComposer?: {
     recipients: { value: string; label: string }[];
     actionsByRecipient: Record<string, ComposerAction[]>;
@@ -288,6 +289,7 @@ export default function DocumentMessaging({
   defaultAssignmentStepId = null,
   showSubmitterConversation,
   canSendSubmitterConversation,
+  readOnly = false,
   workflowComposer,
 }: DocumentMessagingProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -329,13 +331,13 @@ export default function DocumentMessaging({
     ? showSubmitterConversation === true
     : true;
   const canSendSubmitterThread = canSendSubmitterConversation
-    ?? !Boolean(workflowComposer?.isClosed);
+    ?? (!readOnly && !Boolean(workflowComposer?.isClosed));
   const selectedAssignmentConversation = assignmentConversations.find(
     (conversation) => conversation.stepId === selectedThreadStepId,
   );
-  const canSendCurrentConversation = selectedThreadStepId
+  const canSendCurrentConversation = !readOnly && (selectedThreadStepId
     ? Boolean(selectedAssignmentConversation?.canSend)
-    : canViewSubmitterConversation && canSendSubmitterThread;
+    : canViewSubmitterConversation && canSendSubmitterThread);
 
   // Conversation messages have a separate composer; workflow actions are chosen before their target.
   const forwardingRecipients = workflowComposer?.recipients.filter((recipient) =>
@@ -514,6 +516,7 @@ export default function DocumentMessaging({
   }, [assignmentConversations, submissionId, submitterConversationLabel, supabase]);
 
   const markMessagesRead = useCallback(async (rows: MessageRow[], readerId: string) => {
+    if (readOnly) return;
     const unreadMessages = rows.filter((message) => message.sender_id !== readerId);
     if (unreadMessages.length === 0) return;
 
@@ -538,7 +541,7 @@ export default function DocumentMessaging({
       .from('workflow_message_reads')
       .upsert(newReads, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
     if (error) throw new Error(`Could not mark messages as read: ${error.message}`);
-  }, [submissionId, supabase]);
+  }, [readOnly, submissionId, supabase]);
 
   const fetchPage = useCallback(async (readerId: string, before?: MessageRow) => {
     let query = supabase
@@ -1229,7 +1232,7 @@ export default function DocumentMessaging({
           </span>
           <p className="text-xs font-semibold text-warm-text">No messages yet</p>
           <p className="max-w-xs text-[11px] leading-relaxed text-muted-text">
-            Send a message below if you have a question about this request.
+            {readOnly ? 'There are no messages in this conversation yet.' : 'Send a message below if you have a question about this request.'}
           </p>
         </div>
       ) : (
@@ -1326,7 +1329,9 @@ export default function DocumentMessaging({
             <div className="flex items-center gap-2.5">
               <span className="text-clay"><Icon name="message" size={17} /></span>
               <div>
-                <h3 className="text-sm font-bold text-warm-text">Messages about your request</h3>
+                <h3 className="text-sm font-bold text-warm-text">
+                  {readOnly ? 'Messages about this submission' : 'Messages about your request'}
+                </h3>
                 <p className="mt-0.5 text-[10px] text-muted-text">
                   {trackingNumber || fileName} · {conversationLabel}
                 </p>
@@ -1390,7 +1395,7 @@ export default function DocumentMessaging({
 
           <div id={`messages-panel-${submissionId}`}>{conversation}</div>
 
-          <form
+          {!readOnly && <form
             onSubmit={(event) => void sendConversationMessage(event)}
             className="space-y-3 border-t border-warm-border bg-[#f8f5f1] p-4 md:p-5"
           >
@@ -1477,7 +1482,7 @@ export default function DocumentMessaging({
             {!workflowComposer && notice && (
               <p role="status" className="text-[11px] font-medium text-pending-text">{notice}</p>
             )}
-          </form>
+          </form>}
         </section>
 
         <aside className="min-w-0 space-y-5">

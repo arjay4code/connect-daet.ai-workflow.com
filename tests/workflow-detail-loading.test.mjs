@@ -215,7 +215,7 @@ test('the detail RPC includes the route, activity, and revision data in one auth
   assert.match(migration, /case when submission\.user_id = auth\.uid\(\) then null else profile\.email end/);
   assert.match(migration, /or step\.assigned_by_role = actor_role/);
   assert.match(detailLoader, /supabase\.rpc\('get_workflow_submission_detail'/);
-  for (const page of pages) {
+  for (const page of pages.slice(0, 2)) {
     assert.match(page, /loadWorkflowSubmissionDetail/);
     const fetcher = page.match(/const fetch(?:Submission|Details) = useCallback\(async[\s\S]*?\n  \}, \[id, supabase\]\);/)?.[0];
     assert.ok(fetcher, 'Each detail page should have a measurable data-loader boundary.');
@@ -224,6 +224,7 @@ test('the detail RPC includes the route, activity, and revision data in one auth
   }
   assert.equal((pages[0].match(/setAttachments\(detail\.supportingFiles\)/g) ?? []).length, 1);
   assert.equal((pages[1].match(/setAttachments\(detail\.supportingFiles\)/g) ?? []).length, 1);
+  assert.match(pages[2], /<OfficeSubmissionDetail readOnly/);
 });
 
 test('detail realtime refresh listens to state changes and coalesces event bursts', async () => {

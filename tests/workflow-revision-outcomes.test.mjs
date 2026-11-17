@@ -85,11 +85,12 @@ test('submitter editor exposes one-time revision actions and cleans up only fail
 });
 
 test('all detail views use current supporting files and show revision history', () => {
-  for (const page of [submitterPage, officePage, adminPage]) {
+  for (const page of [submitterPage, officePage]) {
     assert.match(page, /loadWorkflowSubmissionDetail/);
     assert.match(page, /setAttachments\(detail\.supportingFiles\)/);
     assert.match(page, /<WorkflowRevisionTimeline/);
   }
+  assert.match(adminPage, /<OfficeSubmissionDetail readOnly/);
   assert.match(officePage, /Resubmitted/);
 });
 
