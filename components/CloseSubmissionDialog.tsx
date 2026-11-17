@@ -43,13 +43,13 @@ export default function CloseSubmissionDialog({
   const assignmentsPending = pendingAssignmentCount > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 max-lg:items-start max-lg:overflow-y-auto">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="close-submission-title"
         aria-describedby="close-submission-description"
-        className="w-full max-w-md rounded-2xl border border-warm-border bg-card p-6 shadow-xl"
+        className="max-lg:my-auto w-full max-w-md rounded-2xl border border-warm-border bg-card p-6 shadow-xl"
       >
         <h2 id="close-submission-title" className="font-serif text-xl text-warm-text">
           Complete submission?

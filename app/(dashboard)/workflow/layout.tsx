@@ -134,7 +134,7 @@ export default function WorkflowLayout({
       <aside className={`
         fixed top-0 left-0 z-40 h-full w-59.5 border-r border-warm-border bg-sidebar
         transition-transform duration-300 lg:translate-x-0
-        flex flex-col max-lg:w-[min(80vw,18rem)]
+        flex flex-col max-lg:w-[min(80vw,18rem)] max-lg:overflow-y-auto
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex h-16 items-center gap-3 border-b border-warm-border px-7">
