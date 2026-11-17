@@ -84,14 +84,22 @@ export default function SubmissionsPage() {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
-        </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
-        <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Search and review submissions from across the system. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.
-        </p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 max-md:mb-5">
+        <div>
+          <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
+          </p>
+          <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
+          <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
+            Search and review submissions from across the system. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.
+          </p>
+        </div>
+        <Link
+          href="/workflow/admin/archive"
+          className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
+        >
+          Archive
+        </Link>
       </div>
 
       {/* Filters */}

@@ -241,7 +241,7 @@ const getActionLabel = (type: string) => {
   }
 };
 
-export default function ApproverManagePage() {
+export default function ApproverManagePage({ readOnly = false }: { readOnly?: boolean }) {
   const { id } = useParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -365,6 +365,7 @@ export default function ApproverManagePage() {
     message: string,
     files: File[],
   ) => {
+    if (readOnly) throw new Error('This submission view is read-only.');
     if (!sub) throw new Error('Submission is unavailable.');
     if (action === 'close_submission') {
       await closeSubmission(message, files[0] ?? null);
@@ -575,7 +576,7 @@ export default function ApproverManagePage() {
     && currentPlanSteps.some((step) =>
       step.assigned_by_role === role && ['pending', 'in_progress'].includes(step.status)
     );
-  const officeReview = isResponsibleOffice || hasOfficeAssignment || activeAssignmentCreatedByCurrentOffice;
+  const officeReview = readOnly || isResponsibleOffice || hasOfficeAssignment || activeAssignmentCreatedByCurrentOffice;
   const activeAssignments = currentPlanSteps.filter((step) =>
     step.status === 'pending' || step.status === 'in_progress'
   );
@@ -1021,7 +1022,7 @@ export default function ApproverManagePage() {
   );
 
   const startOfficeReview = async () => {
-    if (!sub || !isOfficeRole(role) || !requiresReviewStart) return;
+    if (readOnly || !sub || !isOfficeRole(role) || !requiresReviewStart) return;
     setUpdating(true);
     setActionError('');
     try {
@@ -1049,7 +1050,8 @@ export default function ApproverManagePage() {
       <button
         type="button"
         onClick={() => {
-          if (isOfficeRole(role)) router.push(getOfficeFileManagementPath(role));
+          if (readOnly) router.push('/workflow/admin/submissions');
+          else if (isOfficeRole(role)) router.push(getOfficeFileManagementPath(role));
           else router.back();
         }}
         className="mb-5 inline-flex items-center gap-2 text-xs font-semibold text-muted-text transition-colors hover:text-clay"
@@ -1057,8 +1059,13 @@ export default function ApproverManagePage() {
         <span className="grid h-8 w-8 place-items-center rounded-full border border-warm-border bg-card">
           <Icon name="arrow-left" size={16} />
         </span>
-        Back to queue
+        {readOnly ? 'Back to file registry' : 'Back to queue'}
       </button>
+      {readOnly && (
+        <p role="status" className="mb-5 rounded-xl border border-warm-border bg-card px-4 py-3 text-xs text-muted-text">
+          Read-only view. Administrators can review this submission but cannot take workflow actions here.
+        </p>
+      )}
       {(actionError || loadError) && (
         <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text">
           <span>{loadError || actionError}</span>
@@ -1325,9 +1332,10 @@ export default function ApproverManagePage() {
                 submissionId={sub.id}
                 fileName={sub.file_name}
                 trackingNumber={sub.tracking_number ?? null}
+                readOnly={readOnly}
                 assignmentConversations={assignmentConversations}
                 defaultAssignmentStepId={defaultAssignmentStepId}
-                showSubmitterConversation={isResponsibleOffice}
+                showSubmitterConversation={readOnly || isResponsibleOffice}
                 canSendSubmitterConversation={!requiresReviewStart && !isChangesRequested && !isCompleted && !isRejected && !isWithdrawn && !isReturned && isResponsibleOffice}
                 workflowComposer={{
                   recipients,
@@ -1342,10 +1350,10 @@ export default function ApproverManagePage() {
                     ? 'Start processing to receive this submission and change its status to In Process.'
                     : 'The submission is already In Process, but your office assignment is still pending. Start processing here to enable its action options.',
                   startReviewDisabled: !isResponsibleOffice && Boolean(routeStateError),
-                  onStartReview: requiresReviewStart ? startOfficeReview : undefined,
+                  onStartReview: !readOnly && requiresReviewStart ? startOfficeReview : undefined,
                   isOfficeWorkspace: true,
                   activeAssignmentStepId: activeRouteStep?.id ?? null,
-                  showWorkflowActions: isResponsibleOffice || isRecipientOffice,
+                  showWorkflowActions: !readOnly && (isResponsibleOffice || isRecipientOffice),
                   actionSectionId: `office-workflow-action-${sub.id}`,
                   closedMessage: isChangesRequested
                     ? 'This submission is closed while changes are requested. Offices may review the history but cannot act or send messages.'

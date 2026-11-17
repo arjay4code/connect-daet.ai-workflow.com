@@ -96,12 +96,20 @@ export default function UserFileRegistry() {
             </p>
             <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
           </div>
-          <Link
-            href="/workflow/user/upload"
-            className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text sm:self-auto max-md:w-full max-md:self-stretch"
-          >
-            <span className="text-lg font-normal leading-none" aria-hidden="true">+</span> Upload New File
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              href="/workflow/user/archive"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:w-full"
+            >
+              Archive
+            </Link>
+            <Link
+              href="/workflow/user/upload"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:w-full"
+            >
+              <span className="text-lg font-normal leading-none" aria-hidden="true">+</span> Upload New File
+            </Link>
+          </div>
         </div>
 
         {/* TOOLBAR */}
