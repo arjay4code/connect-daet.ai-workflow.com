@@ -60,7 +60,7 @@ begin
     submission.tracking_number,
     submission.file_name,
     submission.file_type,
-    submission.file_size,
+    submission.file_size::bigint,
     submission.status,
     submission.category,
     submission.other_document_type,
