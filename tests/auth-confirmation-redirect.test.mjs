@@ -17,13 +17,16 @@ test('root auth callback does not turn email confirmation codes into password re
 });
 
 test('registration confirmation and password recovery keep distinct callback destinations', async () => {
-  const [registration, login, recovery] = await Promise.all([
+  const [registration, login, recovery, recoveryCallback] = await Promise.all([
     read('../app/(auth)/register/page.tsx'),
     read('../app/(auth)/login/page.tsx'),
     read('../app/api/auth/password/request/route.ts'),
+    read('../app/auth/password-recovery/callback/route.ts'),
   ]);
 
   assert.match(registration, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
   assert.match(login, /type:\s*'signup'[\s\S]*emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
-  assert.match(recovery, /redirectTo\.searchParams\.set\('next',\s*'\/reset-password'\)/);
+  assert.match(recovery, /new URL\('\/auth\/password-recovery\/callback',\s*applicationOrigin\)/);
+  assert.match(recoveryCallback, /searchParams\.forEach/);
+  assert.match(recoveryCallback, /callbackUrl\.searchParams\.set\('next',\s*'\/reset-password'\)/);
 });

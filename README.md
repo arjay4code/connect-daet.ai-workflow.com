@@ -161,16 +161,21 @@ Authentication settings, set the project Site URL to the production app origin,
 and allow the callback URLs `http://localhost:3000/auth/callback`,
 `http://<computer-lan-ip>:3000/auth/callback` when testing from another device,
 and `https://<your-app-domain>/auth/callback` (plus any additional deployed
-environments). Set `NEXT_PUBLIC_APP_URL` to the same origin used by the browser;
-Supabase must allow its `/auth/callback` redirect. Registration and
-resend-confirmation links use this callback.
+environments). Also allow `http://localhost:3000/auth/password-recovery/callback`,
+`http://<computer-lan-ip>:3000/auth/password-recovery/callback`, and
+`https://<your-app-domain>/auth/password-recovery/callback` for password-reset
+links. Set `NEXT_PUBLIC_APP_URL` to the same origin used by the browser; Supabase
+must allow each callback redirect. Registration and resend-confirmation links
+use `/auth/callback`.
 Supabase Auth remains the source of truth for verification; the application
 blocks unconfirmed accounts from workflow pages and the protected file API.
-Password recovery uses the same `/auth/callback` allowlist and then returns to
-`/reset-password`; configure Supabase's recovery email template to use its
-standard secure recovery link. Recovery requests are issued through the
-server-side `/api/auth/password/request` handler and callback exchange before
-the password-change endpoint accepts an update.
+Password recovery uses the dedicated `/auth/password-recovery/callback` allowlist
+entry, which forwards the recovery code to `/auth/callback` with the
+`/reset-password` destination. This avoids relying on a query string being
+accepted by an exact redirect allowlist entry. Configure Supabase's recovery
+email template to use its standard secure recovery link. Recovery requests are
+issued through the server-side `/api/auth/password/request` handler and callback
+exchange before the password-change endpoint accepts an update.
 
 Workflow completion emails are sent through the email outbox and scheduled
 SendGrid processor. Email delivery runs automatically and is separate from the
