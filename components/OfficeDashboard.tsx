@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import {
   getWorkflowDocumentTypeLabel,
+  getOfficeArchivePath,
   getOfficeFileManagementPath,
   OFFICE_CONFIG,
   type OfficeRole,
@@ -20,7 +21,6 @@ import {
   matchesOfficeFileBrowserFilter,
   type FileBrowserFilter,
 } from '@/lib/workflow/file-browser';
-import { isArchiveEligibleStatus } from '@/lib/workflow/archive';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
 import {
   summarizeAssignment,
@@ -65,13 +65,14 @@ export default function OfficeDashboard({
   view,
 }: {
   role: OfficeRole;
-  view: 'dashboard' | 'file-management' | 'archive';
+  view: 'dashboard' | 'file-management';
 }) {
   const office = OFFICE_CONFIG[role];
   const viewerRole = useWorkflowRole();
   const officePath = getOfficeFileManagementPath(role);
   const adminOfficeQuery = viewerRole === 'system_admin' ? `?office=${role}` : '';
   const officeQueuePath = `${officePath}${adminOfficeQuery}`;
+  const officeArchivePath = `${getOfficeArchivePath(role)}${adminOfficeQuery}`;
   const officeSubmissionPath = (submissionId: string) =>
     `${officePath}/${submissionId}${adminOfficeQuery}`;
   const supabase = useMemo(() => createClient(), []);
@@ -280,18 +281,7 @@ export default function OfficeDashboard({
       return matchesSearch && matchesOfficeFileBrowserFilter(submission, filter, role);
     });
   }, [filter, role, search, submissions]);
-  const archiveSubmissions = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return submissions.filter((submission) => {
-      const matchesSearch =
-        !query ||
-        submission.file_name.toLowerCase().includes(query) ||
-        (submission.tracking_number ?? '').toLowerCase().includes(query) ||
-        (submission.category ?? '').toLowerCase().includes(query);
-      return matchesSearch && isArchiveEligibleStatus(submission.status);
-    });
-  }, [search, submissions]);
-  const fileListSubmissions = view === 'archive' ? archiveSubmissions : filteredSubmissions;
+  const fileListSubmissions = filteredSubmissions;
 
   const downloadPreview = async () => {
     if (!previewFile) return;
@@ -316,20 +306,28 @@ export default function OfficeDashboard({
 
   return (
     <div className="w-full">
-      <header className="mb-8">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Office workspace
-        </p>
-        <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
-          {view === 'dashboard' ? `${office.label} dashboard` : view === 'archive' ? 'Archive' : 'File management'}
-        </h1>
-        <p className="mt-2 text-xs text-muted-text">
-          {view === 'dashboard'
-            ? 'Review your office workload and continue processing documents that need action.'
-            : view === 'archive'
-              ? 'Approved and completed submissions handled by your office.'
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text">
+            <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Office workspace
+          </p>
+          <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
+            {view === 'dashboard' ? `${office.label} dashboard` : 'File management'}
+          </h1>
+          <p className="mt-2 text-xs text-muted-text">
+            {view === 'dashboard'
+              ? 'Review your office workload and continue processing documents that need action.'
               : 'Search, filter, and review documents routed to or processed by your office.'}
-        </p>
+          </p>
+        </div>
+        {view === 'file-management' && (
+          <Link
+            href={officeArchivePath}
+            className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
+          >
+            Archive
+          </Link>
+        )}
       </header>
 
       {view === 'dashboard' ? (
@@ -437,18 +435,18 @@ export default function OfficeDashboard({
       ) : (
         <section>
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <label className="relative w-full lg:max-w-xl lg:flex-1" htmlFor={view === 'archive' ? 'office-archive-search' : 'office-search'}>
+            <label className="relative w-full lg:max-w-xl lg:flex-1" htmlFor="office-search">
               <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
               <input
-                id={view === 'archive' ? 'office-archive-search' : 'office-search'}
+                id="office-search"
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={view === 'archive' ? 'Find an archived file...' : 'Find a file by name...'}
+                placeholder="Find a file by name..."
                 className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
               />
             </label>
-            {view !== 'archive' && <FileBrowserFilterSelect value={filter} onChange={setFilter} />}
+            <FileBrowserFilterSelect value={filter} onChange={setFilter} />
             <button
               type="button"
               onClick={() => void fetchSubmissions()}
@@ -473,16 +471,14 @@ export default function OfficeDashboard({
           ) : (
             <>
               <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-sm font-semibold text-warm-text">{view === 'archive' ? 'Archived files' : 'Office files'}</h2>
+                <h2 className="text-sm font-semibold text-warm-text">Office files</h2>
                 <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-medium text-muted-text">{fileListSubmissions.length}</span>
               </div>
               {fileListSubmissions.length === 0 ? (
                 <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
                   <p className="font-serif text-2xl text-warm-text">Nothing here</p>
                   <p className="mt-2 text-xs text-muted-text">
-                    {view === 'archive'
-                      ? 'No approved or completed files match your search.'
-                      : 'No files match your search or filters.'}
+                    No files match your search or filters.
                   </p>
                 </div>
               ) : (
