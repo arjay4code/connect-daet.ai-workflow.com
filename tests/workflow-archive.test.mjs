@@ -18,10 +18,7 @@ test('archive RPC returns eligible records within the authenticated role scope',
   const migration = await read('../supabase/migrations/20261117090000_add_role_scoped_workflow_archives.sql');
   assert.match(migration, /public\.is_active_workflow_account\(\)/);
   assert.match(migration, /lower\(submission\.status\) in \('approved', 'completed'\)/);
-<<<<<<< HEAD
-=======
   assert.match(migration, /submission\.file_size::bigint/);
->>>>>>> f43d4a39e6b0d9fa38d584cc27141cec99e315c4
   assert.match(migration, /actor_role = 'submitter' and submission\.user_id = auth\.uid\(\)/);
   assert.match(migration, /actor_role = 'system_admin' and archive_office_role is null/);
   assert.match(migration, /archive_office_role is distinct from actor_role/);

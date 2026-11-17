@@ -5,14 +5,20 @@ import test from 'node:test';
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('root auth callback does not turn email confirmation codes into password recovery', async () => {
-  const [home, callback] = await Promise.all([
+  const [home, callback, callbackFlow] = await Promise.all([
     read('../app/page.tsx'),
     read('../app/auth/callback/route.ts'),
+    read('../lib/auth/callback-flow.ts'),
   ]);
 
   assert.match(home, /redirect\(`\/auth\/callback\?\$\{callbackParams\.toString\(\)\}`\)/);
   assert.doesNotMatch(home, /next:\s*'\/reset-password'/);
-  assert.match(callback, /searchParams\.get\('next'\)\s*===\s*'\/reset-password'/);
+  assert.match(callback, /getAuthCallbackFlow\(request\.nextUrl\.searchParams\)/);
+  assert.match(callbackFlow, /if \(flow === 'confirmation' \|\| flow === 'recovery'\) return flow;/);
+  assert.match(
+    callbackFlow,
+    /return searchParams\.get\('next'\) === '\/reset-password'\s*\? 'recovery'\s*: 'confirmation'/
+  );
   assert.match(callback, /redirectUrl\.searchParams\.set\('verified',\s*'1'\)/);
 });
 
@@ -24,8 +30,8 @@ test('registration confirmation and password recovery keep distinct callback des
     read('../app/auth/password-recovery/callback/route.ts'),
   ]);
 
-  assert.match(registration, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
-  assert.match(login, /type:\s*'signup'[\s\S]*emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback`/);
+  assert.match(registration, /emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback\?flow=confirmation`/);
+  assert.match(login, /type:\s*'signup'[\s\S]*emailRedirectTo:\s*`\$\{window\.location\.origin\}\/auth\/callback\?flow=confirmation`/);
   assert.match(recovery, /new URL\('\/auth\/password-recovery\/callback',\s*applicationOrigin\)/);
   assert.match(recoveryCallback, /searchParams\.forEach/);
   assert.match(recoveryCallback, /callbackUrl\.searchParams\.set\('next',\s*'\/reset-password'\)/);
