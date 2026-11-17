@@ -142,11 +142,14 @@ recipient greetings, and role-appropriate links. Existing workflow
 notifications, including message notifications, are queued automatically;
 email message notices link to the conversation without including private
 message contents. Set `APP_BASE_URL` to the canonical application origin for
-secure document links in notification emails. After deploying the function,
-applying the email migrations (including
-`20261110032000_switch_workflow_email_to_sendgrid.sql`) and creating both Vault secrets, apply
-`20261110033000_schedule_workflow_email_edge_function.sql` to run the processor
-every minute. If that migration reports missing Vault secrets, it has not
+secure document links in notification emails. After deploying the function and
+applying all email migrations, including
+`20261110032000_switch_workflow_email_to_sendgrid.sql` and
+`20261117140000_fix_workflow_email_action_paths.sql`, ensure
+`20261110033000_schedule_workflow_email_edge_function.sql` has been applied to
+run the processor every minute. The action-path migration also corrects links
+on queued and retryable email jobs for the current role names. If the scheduling
+migration reports missing Vault secrets, it has not
 scheduled the processor; create the named secrets first, then rerun the
 migration. Provider API acceptance is recorded as `accepted`; only a verified
 webhook records delivery. Password-reset emails continue through Supabase Auth
@@ -168,25 +171,22 @@ offices' QR codes.
 
 For account verification, enable email confirmations in Supabase
 Authentication settings, set the project Site URL to the production app origin,
-and allow the confirmation callback URLs
-`http://localhost:3000/auth/callback?flow=confirmation`,
-`http://<computer-lan-ip>:3000/auth/callback?flow=confirmation` when testing
-from another device, and
-`https://<your-app-domain>/auth/callback?flow=confirmation` (plus any
-additional deployed environments). Also allow
-`http://localhost:3000/auth/password-recovery/callback`,
-`http://<computer-lan-ip>:3000/auth/password-recovery/callback`, and
-`https://<your-app-domain>/auth/password-recovery/callback` for password-reset
-links. Set `NEXT_PUBLIC_APP_URL` to the canonical app origin and ensure
-Supabase allows each callback redirect. Registration and resend-confirmation
-links use `/auth/callback?flow=confirmation`; password-reset requests use
-`/auth/password-recovery/callback`, which forwards the recovery code to
-`/auth/callback` with the `/reset-password` destination. The root callback
-recognizes that destination as a recovery flow while treating ordinary
-confirmation links as confirmation.
-The Supabase **Confirm signup** and **Reset password** email templates must each
-include a clickable `{{ .ConfirmationURL }}` link; do not hard-code the reset
-route into the confirmation template or vice versa.
+and allow `/auth/callback?flow=confirmation` for each app origin:
+`http://localhost:3000`, `http://<computer-lan-ip>:3000` when testing from
+another device, and `https://<your-app-domain>` (plus any additional deployed
+environments). Set `NEXT_PUBLIC_APP_URL` to the same canonical HTTPS origin used
+by the deployed app; Supabase must allow the callback redirects. Registration
+and resend-confirmation links use `flow=confirmation`. Password-reset links use
+the dedicated `/auth/password-recovery/callback` URL without a query string;
+allow that path for the same app origins. The callback then forwards the
+recovery code to `/auth/callback` with `next=/reset-password`. Keep
+`/auth/callback?flow=recovery` allowed temporarily if existing, unexpired reset
+emails were generated before this change. The callback continues to accept
+those older links.
+The Supabase **Confirm signup** email template must include a clickable
+`{{ .ConfirmationURL }}` link. The **Reset password** template must also include
+its `{{ .ConfirmationURL }}` link; do not hard-code the reset route into the
+confirmation template or vice versa.
 Supabase Auth remains the source of truth for verification; the application
 blocks unconfirmed accounts from workflow pages and the protected file API.
 Recovery requests are issued through the server-side

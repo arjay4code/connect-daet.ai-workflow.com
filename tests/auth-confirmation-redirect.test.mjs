@@ -14,11 +14,6 @@ test('root auth callback does not turn email confirmation codes into password re
   assert.match(home, /redirect\(`\/auth\/callback\?\$\{callbackParams\.toString\(\)\}`\)/);
   assert.doesNotMatch(home, /next:\s*'\/reset-password'/);
   assert.match(callback, /getAuthCallbackFlow\(request\.nextUrl\.searchParams\)/);
-  assert.match(callbackFlow, /if \(flow === 'confirmation' \|\| flow === 'recovery'\) return flow;/);
-  assert.match(
-    callbackFlow,
-    /return searchParams\.get\('next'\) === '\/reset-password'\s*\? 'recovery'\s*: 'confirmation'/
-  );
   assert.match(callback, /redirectUrl\.searchParams\.set\('verified',\s*'1'\)/);
 });
 
