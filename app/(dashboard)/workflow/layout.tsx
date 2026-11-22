@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   getOfficeFileManagementPath,
   getOfficeNotificationsPath,
@@ -11,6 +11,7 @@ import {
   isOfficeRole,
 } from '@/lib/workflow/offices';
 import { WorkflowRoleProvider } from '@/lib/workflow/role-context';
+import { useWorkflowActivityPresence } from '@/lib/workflow/useWorkflowActivityPresence';
 
 export default function WorkflowLayout({
   children,
@@ -23,7 +24,9 @@ export default function WorkflowLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false); 
   const pathname = usePathname();
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const endActivitySession = useWorkflowActivityPresence(supabase);
 
   const refreshHasUnread = useCallback(async () => {
     const { data, error } = await supabase.rpc('has_unread_workflow_notifications');
@@ -81,7 +84,22 @@ export default function WorkflowLayout({
     };
   }, [supabase, userId, refreshHasUnread]);
 
+  useEffect(() => {
+    const refreshDashboard = () => {
+      if (document.visibilityState === 'visible') router.refresh();
+    };
+    const pollingTimer = window.setInterval(refreshDashboard, 30000);
+    document.addEventListener('visibilitychange', refreshDashboard);
+    window.addEventListener('focus', refreshDashboard);
+    return () => {
+      window.clearInterval(pollingTimer);
+      document.removeEventListener('visibilitychange', refreshDashboard);
+      window.removeEventListener('focus', refreshDashboard);
+    };
+  }, [router]);
+
   const handleLogout = async () => {
+    await endActivitySession();
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
@@ -107,6 +125,8 @@ export default function WorkflowLayout({
       return [
         { href: '/workflow/admin', label: 'Dashboard', icon: '⌬' },
         { href: '/workflow/admin/user_management', label: 'User Registry', icon: '☍' },
+        { href: '/workflow/admin/database-backup', label: 'Backup & Restore', icon: '⇄' },
+        { href: '/workflow/admin/system-logs', label: 'System Logs', icon: '◷' },
         { href: '/workflow/admin/submissions', label: 'File Submissions', icon: '▤' },
         { href: '/workflow/admin/reports', label: 'Reports', icon: '▥' },
         { href: '/workflow/admin/notifications', label: 'Notifications', icon: '⌁', alert: hasUnread },

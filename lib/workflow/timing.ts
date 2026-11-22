@@ -8,8 +8,18 @@ export interface WorkflowTimingRecord {
   current_responsible_role?: string | null;
 }
 
+const STATUSES_WITH_DEADLINES = new Set([
+  'pending',
+  'pending_approver',
+  'pending_admin',
+  'pending_office',
+  'pending_mayor',
+  'in_process',
+  'approved',
+]);
+
 export function getWorkflowTiming(record: WorkflowTimingRecord, now = new Date()) {
-  if (!record.current_stage_due_at || !['pending', 'pending_approver', 'pending_admin', 'approved'].includes(record.status)) {
+  if (!record.current_stage_due_at || !STATUSES_WITH_DEADLINES.has(record.status)) {
     return { state: 'not-applicable' as const, label: 'No Pending Deadline', responsible: null };
   }
 

@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
+import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
 import { createClient } from '@/lib/supabase/client';
+import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import {
   getWorkflowDocumentTypeLabel,
@@ -251,6 +253,8 @@ export default function OfficeDashboard({
     }));
     setLoading(false);
   }, [role, supabase]);
+
+  useWorkflowAutoRefresh(supabase, fetchSubmissions);
 
   useEffect(() => {
     let active = true;
@@ -516,7 +520,7 @@ export default function OfficeDashboard({
                               </div>
                             ) : null}
                             <div className="flex flex-col border-l border-warm-border pl-5">
-                              <span className="text-[10px] font-medium text-muted-text">Reference number</span>
+                              <span className="text-[10px] font-medium text-muted-text">Tracking Number</span>
                               <span className="text-[11px] text-warm-text">{submission.tracking_number || 'Pending'}</span>
                             </div>
                           </div>
@@ -602,6 +606,9 @@ export default function OfficeDashboard({
                 </button>
               </div>
             </header>
+            <div className="px-4 pt-3 sm:px-8">
+              <DocumentDownloadWarning />
+            </div>
             {previewError && (
               <p role="alert" className="border-b border-rejected-bg bg-rejected-bg/50 px-4 py-2 text-xs text-rejected-text">
                 {previewError}

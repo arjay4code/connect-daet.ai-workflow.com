@@ -4,13 +4,19 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminDeleteSubmissionButton from '@/components/AdminDeleteSubmissionButton';
 import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
+import FileBrowserPagination from '@/components/FileBrowserPagination';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
+import FileBrowserSortSelect from '@/components/FileBrowserSortSelect';
 import { useSubmissions } from '@/hooks/useSubmissions';
 import { createClient } from '@/lib/supabase/client';
 import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import {
+  ADMIN_DOCUMENT_PAGE_SIZE,
   matchesFileBrowserFilter,
+  paginateFileBrowserItems,
+  sortFileBrowserSubmissions,
   type FileBrowserFilter,
+  type FileBrowserSort,
 } from '@/lib/workflow/file-browser';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
 import type { Submission } from '@/hooks/useSubmissions';
@@ -45,6 +51,8 @@ function StatusStamp({ status }: { status: string }) {
 export default function SubmissionsPage() {
   const [filter, setFilter] = useState<FileBrowserFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sort, setSort] = useState<FileBrowserSort>('newest');
+  const [page, setPage] = useState(1);
   const [previewFile, setPreviewFile] = useState<Submission | null>(null);
   const [previewError, setPreviewError] = useState('');
   const { submissions, loading, refreshSubmissions } = useSubmissions();
@@ -69,6 +77,14 @@ export default function SubmissionsPage() {
       return matchesSearch && matchesFileBrowserFilter(sub.status, filter);
     });
   }, [filter, searchQuery, submissions]);
+  const sortedSubmissions = useMemo(
+    () => sortFileBrowserSubmissions(filteredSubmissions, sort),
+    [filteredSubmissions, sort]
+  );
+  const paginatedSubmissions = useMemo(
+    () => paginateFileBrowserItems(sortedSubmissions, page, ADMIN_DOCUMENT_PAGE_SIZE),
+    [page, sortedSubmissions]
+  );
 
   const downloadPreview = async () => {
     if (!previewFile) return;
@@ -107,13 +123,31 @@ export default function SubmissionsPage() {
         <input
           type="search"
           value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          aria-label="Search files by name, reference number, or requester email"
-          placeholder="Find a file by name, reference number, or requester..."
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setPage(1);
+          }}
+          aria-label="Search files by name, tracking number, or requester email"
+          placeholder="Find a file by name, tracking number, or requester..."
           className="h-12 w-full rounded-full border border-warm-border bg-card px-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
         />
 
-        <FileBrowserFilterSelect value={filter} onChange={setFilter} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FileBrowserFilterSelect
+            value={filter}
+            onChange={(value) => {
+              setFilter(value);
+              setPage(1);
+            }}
+          />
+          <FileBrowserSortSelect
+            value={sort}
+            onChange={(value) => {
+              setSort(value);
+              setPage(1);
+            }}
+          />
+        </div>
       </div>
 
       {/* List header */}
@@ -134,7 +168,7 @@ export default function SubmissionsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredSubmissions.map((sub) => {
+          {paginatedSubmissions.items.map((sub) => {
             return (
               <article
                 key={sub.id}
@@ -208,6 +242,14 @@ export default function SubmissionsPage() {
               </article>
             );
           })}
+          <FileBrowserPagination
+            start={paginatedSubmissions.start}
+            end={paginatedSubmissions.end}
+            totalItems={filteredSubmissions.length}
+            page={paginatedSubmissions.page}
+            totalPages={paginatedSubmissions.totalPages}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

@@ -26,6 +26,7 @@ interface UserProfile {
   role: string;
   created_at: string;
   is_active: boolean;
+  is_removed: boolean;
   verificationStatus: VerificationStatus;
 }
 
@@ -66,6 +67,27 @@ const ROLE_LABELS: Record<Role, string> = {
 
 const capitalize = (s: string) => ROLE_LABELS[s as Role] ?? s.charAt(0).toUpperCase() + s.slice(1);
 
+function getAgeFromDateOfBirth(dateOfBirth: string): string {
+  if (!dateOfBirth) return '';
+  const [year, month, day] = dateOfBirth.split('-').map(Number);
+  if (!year || !month || !day) return '';
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) {
+    age -= 1;
+  }
+  return age >= 0 ? String(age) : '';
+}
+
+function getDateInputYearsAgo(years: number): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - years);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 // ─── Role Badge ──────────────────────────────────────────────────────────────
 function RoleBadge({ role }: { role: string }) {
   return (
@@ -91,6 +113,15 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
   );
 }
 
+function AccountStatusBadge({ isActive }: { isActive: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium ${isActive ? 'bg-approved-bg text-approved-text' : 'bg-sidebar text-muted-text'}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {isActive ? 'Enabled' : 'Disabled'}
+    </span>
+  );
+}
+
 export default function UserManagementPage() {
   const supabase = useMemo(() => createClient(), []);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -98,14 +129,13 @@ export default function UserManagementPage() {
   const [usersError, setUsersError] = useState('');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [showInactive, setShowInactive] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
   const [newAccountDetails, setNewAccountDetails] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     phoneNumber: '',
-    age: '',
+    dateOfBirth: '',
     sex: '',
     address: '',
   });
@@ -116,6 +146,7 @@ export default function UserManagementPage() {
   const [invitationLink, setInvitationLink] = useState<{ email: string; fullName: string; role: Role; url: string } | null>(null);
   const [linkActionStatus, setLinkActionStatus] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const [accountStatusError, setAccountStatusError] = useState('');
   const [userFetchError, setUserFetchError] = useState('');
 
   // ─── Data actions ──────────────────────────────────────────────────────────
@@ -123,8 +154,8 @@ export default function UserManagementPage() {
     setUsersError('');
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, created_at, is_active')
-      .eq('is_active', !showInactive)
+      .select('id, email, full_name, role, created_at, is_active, is_removed')
+      .eq('is_removed', false)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -137,7 +168,9 @@ export default function UserManagementPage() {
 
     const profiles = data ?? [];
     try {
-      const response = await fetch('/api/admin/accounts', { cache: 'no-store' });
+      const response = await fetch('/api/admin/accounts', {
+        cache: 'no-store',
+      });
       const result = await response.json() as {
         error?: string;
         verificationStatuses?: Record<string, Exclude<VerificationStatus, 'unknown'>>;
@@ -159,7 +192,7 @@ export default function UserManagementPage() {
       setUsersError(message);
     }
     setLoading(false);
-  }, [showInactive, supabase]);
+  }, [supabase]);
 
   const createOfficialAccount = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -173,13 +206,20 @@ export default function UserManagementPage() {
       .join(' ');
 
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) {
+        throw new Error('Your administrator session has expired. Sign in again and retry.');
+      }
       const response = await fetch('/api/admin/accounts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           email: newAccountEmail,
           ...newAccountDetails,
-          age: Number(newAccountDetails.age),
           role: newAccountRole,
         }),
       });
@@ -199,7 +239,7 @@ export default function UserManagementPage() {
         middleName: '',
         lastName: '',
         phoneNumber: '',
-        age: '',
+        dateOfBirth: '',
         sex: '',
         address: '',
       });
@@ -227,33 +267,73 @@ export default function UserManagementPage() {
 
   const deleteUser = async (userId: string, email: string) => {
     const confirmed = window.confirm(
-      `Disable ${email}'s sign-in, free this email for a new registration, and anonymize their old workflow history?`
+      `Permanently remove ${email}, free this email for a new registration, and anonymize their old workflow history? This cannot be undone.`
     );
     if (!confirmed) return;
 
     setUpdating(userId);
     setDeleteError('');
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) {
+        throw new Error('Your administrator session has expired. Sign in again and retry.');
+      }
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      const result: unknown = await response.json();
-      const errorMessage =
-        typeof result === 'object'
-        && result !== null
-        && 'error' in result
-        && typeof result.error === 'string'
-          ? result.error
-          : 'Could not remove this user.';
+      const result = await response.json() as { error?: string; warning?: string; removed?: boolean };
 
+      if (result.removed) setUsers((currentUsers) => currentUsers.filter((currentUser) => currentUser.id !== userId));
       if (!response.ok) {
-        setDeleteError(errorMessage);
+        setDeleteError(result.error || result.warning || 'Could not remove this user.');
         return;
       }
-      setUsers(prev => prev.filter(u => u.id !== userId));
     } catch (error) {
       console.error('User deletion request failed:', error);
-      setDeleteError('Could not reach the server to delete this user. Please try again.');
+      setDeleteError(error instanceof Error ? error.message : 'Could not reach the server to delete this user. Please try again.');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const updateAccountStatus = async (user: UserProfile) => {
+    const nextIsActive = !user.is_active;
+    const action = nextIsActive ? 'enable' : 'disable';
+    if (!window.confirm(`${nextIsActive ? 'Enable' : 'Disable'} ${user.email}'s account? You can change this status again later.`)) {
+      return;
+    }
+
+    setUpdating(user.id);
+    setAccountStatusError('');
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) {
+        throw new Error('Your administrator session has expired. Sign in again and retry.');
+      }
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ is_active: nextIsActive }),
+      });
+      const result = await response.json() as { error?: string; warning?: string; is_active?: boolean };
+      const updatedIsActive = result.is_active;
+      if (typeof updatedIsActive === 'boolean') {
+        setUsers((currentUsers) => currentUsers.map((currentUser) => (
+          currentUser.id === user.id ? { ...currentUser, is_active: updatedIsActive } : currentUser
+        )));
+      }
+      if (!response.ok) throw new Error(result.error || result.warning || `Could not ${action} this account.`);
+      if (result.warning) setAccountStatusError(result.warning);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Could not ${action} this account.`;
+      console.error('Account status update failed:', message);
+      setAccountStatusError(message);
     } finally {
       setUpdating(null);
     }
@@ -387,6 +467,26 @@ export default function UserManagementPage() {
             />
           </div>
           <div>
+            <label htmlFor="official-account-birthday" className="mb-1.5 block text-[11px] font-medium text-muted-text">Birthday</label>
+            <input
+              id="official-account-birthday"
+              type="date"
+              autoComplete="bday"
+              value={newAccountDetails.dateOfBirth}
+              onChange={(event) => {
+                const dateOfBirth = event.target.value;
+                setNewAccountDetails((current) => ({
+                  ...current,
+                  dateOfBirth,
+                }));
+              }}
+              min={getDateInputYearsAgo(120)}
+              max={getDateInputYearsAgo(1)}
+              required
+              className="h-11 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text outline-none focus:border-clay"
+            />
+          </div>
+          <div>
             <label htmlFor="official-account-age" className="mb-1.5 block text-[11px] font-medium text-muted-text">Age</label>
             <input
               id="official-account-age"
@@ -394,11 +494,11 @@ export default function UserManagementPage() {
               min={1}
               max={120}
               step={1}
-              value={newAccountDetails.age}
-              onChange={(event) => setNewAccountDetails((current) => ({ ...current, age: event.target.value }))}
+              value={getAgeFromDateOfBirth(newAccountDetails.dateOfBirth)}
+              readOnly
               required
-              className="h-11 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text outline-none focus:border-clay"
-              placeholder="Age"
+              className="h-11 w-full rounded-full border border-warm-border bg-sidebar px-4 text-xs text-warm-text outline-none"
+              placeholder="Calculated from birthday"
             />
           </div>
           <div>
@@ -522,6 +622,14 @@ export default function UserManagementPage() {
           Account removal failed: {deleteError}
         </p>
       )}
+      {accountStatusError && (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text"
+        >
+          Account status update: {accountStatusError}
+        </p>
+      )}
       {userFetchError && (
         <p
           role="alert"
@@ -569,18 +677,6 @@ export default function UserManagementPage() {
             </svg>
           </label>
 
-          <button
-            type="button"
-            onClick={() => setShowInactive((current) => !current)}
-            aria-pressed={showInactive}
-            className={`inline-flex h-12 w-full shrink-0 items-center justify-center rounded-full border px-4 text-xs font-medium transition-colors sm:w-auto ${
-              showInactive
-                ? 'border-clay bg-clay text-white'
-                : 'border-warm-border bg-card text-warm-text hover:bg-sidebar'
-            }`}
-          >
-            {showInactive ? 'Showing removed accounts' : 'Show removed accounts'}
-          </button>
         </div>
       </div>
 
@@ -638,6 +734,7 @@ export default function UserManagementPage() {
 
               <div className="flex flex-wrap items-center gap-2 sm:justify-end max-md:w-full max-md:flex-col max-md:items-stretch">
                 <VerificationBadge status={user.verificationStatus} />
+                <AccountStatusBadge isActive={user.is_active} />
                 <div className="max-md:self-start">
                   <span className="mr-2 text-[10px] font-medium text-muted-text">Base role</span>
                   <RoleBadge role={user.role} />
@@ -648,12 +745,20 @@ export default function UserManagementPage() {
                     <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Processing...
                   </div>
                 ) : (
-                  <button
-                    onClick={() => deleteUser(user.id, user.email)}
-                    className="inline-flex h-10 items-center justify-center rounded-full border border-rejected-bg px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/50 max-md:h-11 max-md:w-full"
-                  >
-                    {user.is_active ? 'Remove account' : 'Free email for re-registration'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => void updateAccountStatus(user)}
+                      className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
+                    >
+                      {user.is_active ? 'Disable account' : 'Enable account'}
+                    </button>
+                    <button
+                      onClick={() => void deleteUser(user.id, user.email)}
+                      className="inline-flex h-10 items-center justify-center rounded-full border border-rejected-bg px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/50 max-md:h-11 max-md:w-full"
+                    >
+                      Remove account
+                    </button>
+                  </>
                 )}
               </div>
             </article>

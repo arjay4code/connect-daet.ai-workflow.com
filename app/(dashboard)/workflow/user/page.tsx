@@ -9,6 +9,7 @@ import FilePreview, { downloadFile, getFileUrl, type PreviewableFile } from '@/c
 import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
 import { getDashboardSubmissionPreview } from '@/lib/workflow/file-browser';
 import { useRoutePreviews, type WorkflowRoutePreview } from '@/lib/workflow/useRoutePreviews';
+import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
 
 // ─── Styles & Fonts ──────────────────────────────────────────────────────────
 const fonts = {
@@ -246,6 +247,7 @@ export default function WorkflowDashboard() {
   }, [supabase]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useWorkflowAutoRefresh(supabase, fetchAll);
 
   // Close preview with Escape
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { getRoleHomePath } from '@/lib/workflow/offices';
+import { getPasswordValidationError, MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
 
 export default function SetupPasswordPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -48,8 +49,9 @@ export default function SetupPasswordPage() {
     event.preventDefault();
     setError('');
 
-    if (password.length < 8) {
-      setError('Your password must be at least 8 characters long.');
+    const validationError = getPasswordValidationError(password);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     if (password !== confirmPassword) {
@@ -107,12 +109,13 @@ export default function SetupPasswordPage() {
                   id="new-password"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={MINIMUM_PASSWORD_LENGTH}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                   className="h-11 w-full rounded-full border border-warm-border bg-card px-4 text-sm text-warm-text outline-none focus:border-clay"
                 />
+                <p className="mt-1.5 text-[11px] text-muted-text">Use at least {MINIMUM_PASSWORD_LENGTH} characters. A unique passphrase is fine.</p>
               </div>
               <div>
                 <label htmlFor="confirm-password" className="mb-1.5 block text-[11px] font-medium text-muted-text">Confirm password</label>
@@ -120,7 +123,7 @@ export default function SetupPasswordPage() {
                   id="confirm-password"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={MINIMUM_PASSWORD_LENGTH}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   required

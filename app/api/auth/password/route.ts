@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
-import { MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
+import { getPasswordValidationError } from '@/lib/auth/password';
 
 const recoveryCookieName = 'docuflow-password-recovery';
 
@@ -88,9 +88,10 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json({ error: 'A new password is required' }, { status: 400 });
   }
-  if (payload.password.length < MINIMUM_PASSWORD_LENGTH) {
+  const passwordError = getPasswordValidationError(payload.password);
+  if (passwordError) {
     return NextResponse.json(
-      { error: `Password must be at least ${MINIMUM_PASSWORD_LENGTH} characters.` },
+      { error: passwordError },
       { status: 400 }
     );
   }

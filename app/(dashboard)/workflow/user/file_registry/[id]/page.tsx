@@ -244,7 +244,7 @@ export default function UserFileDetail() {
 
   useEffect(() => {
     let active = true;
-    if (!retrievalQr || retrievalQr.retrieval_status !== 'active') {
+    if (!retrievalQr || !['active', 'released'].includes(retrievalQr.retrieval_status)) {
       setQrImage('');
       return;
     }
@@ -822,7 +822,7 @@ export default function UserFileDetail() {
             </div>
           </div>
           <div className="shrink-0 rounded-xl border border-warm-border bg-white px-5 py-3.5 md:text-right">
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Reference number</p>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Tracking Number</p>
             <p className="font-mono text-sm font-bold tracking-[0.08em] text-clay">
               {sub.tracking_number || 'Pending'}
             </p>
@@ -1021,15 +1021,11 @@ export default function UserFileDetail() {
           <p className="mb-4 text-[11px] leading-relaxed text-muted-text">
             When processing is complete, generate a QR code to show the staff member when you collect your document.
           </p>
-          {retrievalQr?.retrieval_status === 'released' ? (
-            <p className="rounded-xl bg-approved-bg px-3 py-3 text-xs font-semibold text-approved-text">
-              Your document has already been released.
-            </p>
-          ) : !canGenerateRetrievalQr ? (
+          {!canGenerateRetrievalQr ? (
             <p className="rounded-xl bg-sidebar px-3 py-3 text-xs text-muted-text">
               A pickup QR code will be available when processing is complete.
             </p>
-          ) : retrievalQr?.retrieval_status === 'active' ? (
+          ) : retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released' ? (
             <div className="retrieval-qr-print rounded-xl border border-warm-border bg-white p-4 text-center">
               {qrImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1041,7 +1037,7 @@ export default function UserFileDetail() {
               ) : (
                 <p className="py-12 text-xs text-muted-text">Preparing your QR code...</p>
               )}
-              <p className="mt-2 text-sm font-bold text-warm-text">Request reference: {sub.tracking_number}</p>
+              <p className="mt-2 text-sm font-bold text-warm-text">Tracking Number: {sub.tracking_number}</p>
               <p className="mt-2 text-xs text-warm-text">
                 Show this QR code to the authorized staff member when you collect your document.
               </p>
@@ -1059,7 +1055,7 @@ export default function UserFileDetail() {
               {qrLoading ? 'Creating QR code...' : 'Create pickup QR code'}
             </button>
           )}
-          {retrievalQr?.retrieval_status === 'active' && (
+          {(retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released') && (
             <div className="mt-4 flex gap-2 print:hidden">
               <button
                 type="button"

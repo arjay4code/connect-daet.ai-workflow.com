@@ -36,14 +36,23 @@ export async function GET(request: NextRequest) {
     return response;
   };
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const accessToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const requestClient = accessToken
+    ? createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    })
+    : supabase;
+  const { data: { user }, error: userError } = accessToken
+    ? await requestClient.auth.getUser(accessToken)
+    : await requestClient.auth.getUser();
   if (userError || !user) {
     return withAuthCookies(NextResponse.json({ error: 'Sign in as an administrator to view account verification status.' }, { status: 401 }));
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await requestClient
     .from('profiles')
-    .select('role')
+    .select('role, is_active, is_removed')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -51,7 +60,7 @@ export async function GET(request: NextRequest) {
     console.error('Could not verify account status access:', profileError.message);
     return withAuthCookies(NextResponse.json({ error: 'Could not verify administrator access.' }, { status: 500 }));
   }
-  if (profile?.role !== 'system_admin') {
+  if (profile?.role !== 'system_admin' || !profile.is_active || profile.is_removed) {
     return withAuthCookies(NextResponse.json({ error: 'Only administrators can view account verification status.' }, { status: 403 }));
   }
 
@@ -121,14 +130,23 @@ export async function POST(request: NextRequest) {
     return response;
   };
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const accessToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const requestClient = accessToken
+    ? createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    })
+    : supabase;
+  const { data: { user }, error: userError } = accessToken
+    ? await requestClient.auth.getUser(accessToken)
+    : await requestClient.auth.getUser();
   if (userError || !user) {
     return withAuthCookies(NextResponse.json({ error: 'Sign in as an administrator to create official accounts.' }, { status: 401 }));
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await requestClient
     .from('profiles')
-    .select('role')
+    .select('role, is_active, is_removed')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -136,7 +154,7 @@ export async function POST(request: NextRequest) {
     console.error('Could not verify account creation permission:', profileError.message);
     return withAuthCookies(NextResponse.json({ error: 'Could not verify administrator access.' }, { status: 500 }));
   }
-  if (profile?.role !== 'system_admin') {
+  if (profile?.role !== 'system_admin' || !profile.is_active || profile.is_removed) {
     return withAuthCookies(NextResponse.json({ error: 'Only administrators can create official accounts.' }, { status: 403 }));
   }
 
@@ -146,7 +164,7 @@ export async function POST(request: NextRequest) {
     middleName?: unknown;
     lastName?: unknown;
     phoneNumber?: unknown;
-    age?: unknown;
+    dateOfBirth?: unknown;
     sex?: unknown;
     address?: unknown;
     role?: unknown;
@@ -162,7 +180,7 @@ export async function POST(request: NextRequest) {
   const middleName = typeof body.middleName === 'string' ? body.middleName.trim() : '';
   const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : '';
   const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
-  const age = body.age;
+  const dateOfBirth = typeof body.dateOfBirth === 'string' ? body.dateOfBirth : '';
   const sex = typeof body.sex === 'string' ? body.sex : '';
   const address = typeof body.address === 'string' ? body.address.trim() : '';
   const role = typeof body.role === 'string' ? body.role : '';
@@ -173,12 +191,41 @@ export async function POST(request: NextRequest) {
   if (!firstName || firstName.length > 80 || !lastName || lastName.length > 80 || middleName.length > 80 || fullName.length > 240) {
     return withAuthCookies(NextResponse.json({ error: 'Enter a first and last name of up to 80 characters each. Middle name is optional.' }, { status: 400 }));
   }
+  const birthDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  if (!birthDateMatch) {
+    return withAuthCookies(NextResponse.json({ error: 'Choose a valid birthday.' }, { status: 400 }));
+  }
+  const parsedBirthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  if (Number.isNaN(parsedBirthDate.getTime()) || parsedBirthDate.toISOString().slice(0, 10) !== dateOfBirth) {
+    return withAuthCookies(NextResponse.json({ error: 'Choose a valid birthday.' }, { status: 400 }));
+  }
+  const manilaDateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const getDatePart = (type: 'year' | 'month' | 'day') => Number(
+    manilaDateParts.find((part) => part.type === type)?.value
+  );
+  const currentYear = getDatePart('year');
+  const currentMonth = getDatePart('month');
+  const currentDay = getDatePart('day');
+  const birthYear = Number(birthDateMatch[1]);
+  const birthMonth = Number(birthDateMatch[2]);
+  const birthDay = Number(birthDateMatch[3]);
+  const age = currentYear - birthYear
+    - (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay) ? 1 : 0);
+  if (
+    dateOfBirth > `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`
+    || age < 1
+    || age > 120
+  ) {
+    return withAuthCookies(NextResponse.json({ error: 'Birthday must be within the last 120 years.' }, { status: 400 }));
+  }
   const phoneDigits = phoneNumber.replace(/\D/g, '');
   if (!/^\+?[\d\s().-]{7,24}$/.test(phoneNumber) || phoneDigits.length < 7 || phoneDigits.length > 15) {
     return withAuthCookies(NextResponse.json({ error: 'Enter a valid contact number with 7 to 15 digits.' }, { status: 400 }));
-  }
-  if (typeof age !== 'number' || !Number.isInteger(age) || age < 1 || age > 120) {
-    return withAuthCookies(NextResponse.json({ error: 'Enter an age from 1 to 120.' }, { status: 400 }));
   }
   if (!['female', 'male', 'other', 'prefer_not_to_say'].includes(sex)) {
     return withAuthCookies(NextResponse.json({ error: 'Choose a valid sex option.' }, { status: 400 }));
@@ -231,6 +278,7 @@ export async function POST(request: NextRequest) {
         middle_name: middleName || null,
         last_name: lastName,
         phone_number: phoneNumber,
+        date_of_birth: dateOfBirth,
         age,
         sex,
         address,
@@ -290,14 +338,23 @@ export async function DELETE(request: NextRequest) {
     return response;
   };
 
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const accessToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const requestClient = accessToken
+    ? createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    })
+    : supabase;
+  const { data: { user }, error: userError } = accessToken
+    ? await requestClient.auth.getUser(accessToken)
+    : await requestClient.auth.getUser();
   if (userError || !user) {
     return withAuthCookies(NextResponse.json({ error: 'Sign in as an administrator to delete profiles.' }, { status: 401 }));
   }
 
-  const { data: requesterProfile, error: requesterProfileError } = await supabase
+  const { data: requesterProfile, error: requesterProfileError } = await requestClient
     .from('profiles')
-    .select('role')
+    .select('role, is_active, is_removed')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -305,7 +362,11 @@ export async function DELETE(request: NextRequest) {
     console.error('Could not verify profile deletion permission:', requesterProfileError.message);
     return withAuthCookies(NextResponse.json({ error: 'Could not verify administrator access.' }, { status: 500 }));
   }
-  if (requesterProfile?.role !== 'system_admin') {
+  if (
+    requesterProfile?.role !== 'system_admin'
+    || !requesterProfile.is_active
+    || requesterProfile.is_removed
+  ) {
     return withAuthCookies(NextResponse.json({ error: 'Only administrators can delete profiles.' }, { status: 403 }));
   }
 
@@ -346,6 +407,8 @@ export async function DELETE(request: NextRequest) {
       .from('profiles')
       .select('id')
       .eq('role', 'system_admin')
+      .eq('is_active', true)
+      .eq('is_removed', false)
       .neq('id', targetUserId)
       .limit(1)
       .maybeSingle();

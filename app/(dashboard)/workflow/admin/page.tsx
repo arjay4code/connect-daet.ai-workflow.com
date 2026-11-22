@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
+import FileBrowserPagination from '@/components/FileBrowserPagination';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
+import FileBrowserSortSelect from '@/components/FileBrowserSortSelect';
 import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import { createClient } from '@/lib/supabase/client';
 import {
-  getDashboardSubmissionPreview,
+  ADMIN_DOCUMENT_PAGE_SIZE,
+  paginateFileBrowserItems,
   matchesFileBrowserFilter,
+  sortFileBrowserSubmissions,
   type FileBrowserFilter,
+  type FileBrowserSort,
 } from '@/lib/workflow/file-browser';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
 
@@ -117,6 +122,8 @@ export default function AdminDashboard() {
   const [previewError, setPreviewError] = useState('');
   const [fileFilter, setFileFilter] = useState<FileBrowserFilter>('all');
   const [fileSearch, setFileSearch] = useState('');
+  const [fileSort, setFileSort] = useState<FileBrowserSort>('newest');
+  const [filePage, setFilePage] = useState(1);
 
   const fetchMonitoringData = useCallback(async () => {
     setLoading(true);
@@ -169,7 +176,14 @@ export default function AdminDashboard() {
       return matchesSearch && matchesFileBrowserFilter(submission.status, fileFilter);
     });
   }, [fileFilter, fileSearch, profilesById, submissions]);
-  const dashboardSubmissions = getDashboardSubmissionPreview(filteredSubmissions);
+  const sortedSubmissions = useMemo(
+    () => sortFileBrowserSubmissions(filteredSubmissions, fileSort),
+    [fileSort, filteredSubmissions]
+  );
+  const paginatedSubmissions = useMemo(
+    () => paginateFileBrowserItems(sortedSubmissions, filePage, ADMIN_DOCUMENT_PAGE_SIZE),
+    [filePage, sortedSubmissions]
+  );
   const downloadPreview = async () => {
     if (!previewSubmission) return;
     setPreviewError('');
@@ -227,7 +241,7 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-sm font-semibold text-warm-text">Submitted documents</h2>
             <p className="mt-1 text-[11px] text-muted-text">
-              Showing {dashboardSubmissions.length} of {filteredSubmissions.length} matching files. Search by document name, reference number, or requester.
+              Showing {paginatedSubmissions.start}–{paginatedSubmissions.end} of {filteredSubmissions.length} matching files. Search by document name, tracking number, or requester.
             </p>
           </div>
           <Link href="/workflow/admin/submissions" className="text-xs font-semibold text-clay underline underline-offset-4">
@@ -250,13 +264,31 @@ export default function AdminDashboard() {
                 <input
                   type="search"
                   value={fileSearch}
-                  onChange={(event) => setFileSearch(event.target.value)}
-                  aria-label="Search files by name, reference number, or requester email"
+                  onChange={(event) => {
+                    setFileSearch(event.target.value);
+                    setFilePage(1);
+                  }}
+                  aria-label="Search files by name, tracking number, or requester email"
                   placeholder="Find a file by name..."
                   className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
                 />
               </div>
-              <FileBrowserFilterSelect value={fileFilter} onChange={setFileFilter} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FileBrowserFilterSelect
+                  value={fileFilter}
+                  onChange={(value) => {
+                    setFileFilter(value);
+                    setFilePage(1);
+                  }}
+                />
+                <FileBrowserSortSelect
+                  value={fileSort}
+                  onChange={(value) => {
+                    setFileSort(value);
+                    setFilePage(1);
+                  }}
+                />
+              </div>
             </div>
 
             {filteredSubmissions.length === 0 ? (
@@ -264,8 +296,9 @@ export default function AdminDashboard() {
                 <p className="font-serif text-2xl text-warm-text">Nothing here</p>
                 <p className="mt-2 text-xs text-muted-text">No files match your search or filters.</p>
               </div>
-            ) : <div className="space-y-3">
-            {dashboardSubmissions.map((submission) => {
+            ) : <>
+            <div className="space-y-3">
+            {paginatedSubmissions.items.map((submission) => {
               const profile = profilesById.get(submission.user_id);
               return (
                 <article
@@ -334,7 +367,16 @@ export default function AdminDashboard() {
                 </article>
               );
             })}
-            </div>}
+            </div>
+            <FileBrowserPagination
+              start={paginatedSubmissions.start}
+              end={paginatedSubmissions.end}
+              totalItems={filteredSubmissions.length}
+              page={paginatedSubmissions.page}
+              totalPages={paginatedSubmissions.totalPages}
+              onPageChange={setFilePage}
+            />
+            </>}
           </>
         )}
       </section>
