@@ -30,6 +30,10 @@ import {
   OFFICE_CONFIG,
   type OfficeRole,
 } from '@/lib/workflow/offices';
+import {
+  fetchWorkflowOfficeDocumentTypes,
+  getWorkflowDocumentTypesForOffice,
+} from '@/lib/workflow/document-types';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
 import { useWorkflowAccount } from '@/lib/workflow/role-context';
 
@@ -152,6 +156,10 @@ export default function UserFileDetail() {
   const [closingPermanently, setClosingPermanently] = useState(false);
   const [closureActor, setClosureActor] = useState<string | null>(null);
   const [redirectOffice, setRedirectOffice] = useState<OfficeRole | ''>('');
+  const [redirectDocumentTypes, setRedirectDocumentTypes] = useState<string[]>([]);
+  const [loadingRedirectDocumentTypes, setLoadingRedirectDocumentTypes] = useState(false);
+  const [redirectDocumentTypesError, setRedirectDocumentTypesError] = useState('');
+  const [redirectDocumentTypesReloadKey, setRedirectDocumentTypesReloadKey] = useState(0);
   const [redirectDocumentType, setRedirectDocumentType] = useState('');
   const [redirectOtherDocumentType, setRedirectOtherDocumentType] = useState('');
   const [savingRedirect, setSavingRedirect] = useState(false);
@@ -233,6 +241,42 @@ export default function UserFileDetail() {
   useEffect(() => {
     void fetchSubmission();
   }, [fetchSubmission]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRedirectDocumentTypes([]);
+    setRedirectDocumentTypesError('');
+
+    if (!redirectOffice) {
+      setLoadingRedirectDocumentTypes(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadingRedirectDocumentTypes(true);
+    void fetchWorkflowOfficeDocumentTypes(supabase, redirectOffice)
+      .then((documentTypes) => {
+        if (!cancelled) {
+          setRedirectDocumentTypes(
+            getWorkflowDocumentTypesForOffice(documentTypes, redirectOffice)
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Redirect document type load failed:', error);
+        if (!cancelled) {
+          setRedirectDocumentTypesError('Could not load document types for this office.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRedirectDocumentTypes(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [redirectDocumentTypesReloadKey, redirectOffice, supabase]);
 
   const refreshSubmissionDetail = useCallback(() => {
     void fetchSubmission(true);
@@ -1426,15 +1470,33 @@ export default function UserFileDetail() {
                       setRedirectDocumentType(event.target.value);
                       setRedirectOtherDocumentType('');
                     }}
-                    disabled={savingRedirect || !isOfficeRole(redirectOffice)}
+                    disabled={savingRedirect || loadingRedirectDocumentTypes || Boolean(redirectDocumentTypesError) || !isOfficeRole(redirectOffice)}
                     className="mt-1.5 block h-10 w-full rounded-xl border border-warm-border bg-white px-3 text-xs font-medium normal-case tracking-normal text-warm-text outline-none focus:border-clay"
                   >
-                    <option value="">Choose a document type</option>
-                    {isOfficeRole(redirectOffice) && OFFICE_CONFIG[redirectOffice].categories.map((category) => (
+                    <option value="">
+                      {loadingRedirectDocumentTypes
+                        ? 'Loading document types...'
+                        : redirectDocumentTypesError
+                          ? 'Document types unavailable'
+                          : 'Choose a document type'}
+                    </option>
+                    {redirectDocumentTypes.map((category) => (
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
                 </label>
+                {redirectDocumentTypesError ? (
+                  <p role="alert" className="text-[11px] text-rejected-text">
+                    {redirectDocumentTypesError}{' '}
+                    <button
+                      type="button"
+                      onClick={() => setRedirectDocumentTypesReloadKey((key) => key + 1)}
+                      className="font-semibold underline"
+                    >
+                      Retry
+                    </button>
+                  </p>
+                ) : null}
                 {redirectDocumentType === 'Other' && (
                   <label className="block text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">
                     Describe the document type

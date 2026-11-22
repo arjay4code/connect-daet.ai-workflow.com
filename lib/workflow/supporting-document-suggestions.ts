@@ -1,24 +1,10 @@
 import type { OFFICE_CONFIG } from './offices';
 
 type OfficeRole = keyof typeof OFFICE_CONFIG;
-
-type MayorOfficeDocumentType = Exclude<
-  (typeof OFFICE_CONFIG.mayor_office.categories)[number],
-  'Other'
->;
-
-type MunicipalTreasurerDocumentType = Exclude<
-  (typeof OFFICE_CONFIG.municipal_treasurer.categories)[number],
-  'Other'
->;
-
-type SangguniangBayanDocumentType = Exclude<
-  (typeof OFFICE_CONFIG.sangguniang_bayan.categories)[number],
-  'Other'
->;
-
-type TourismOfficeDocumentType =
-  (typeof OFFICE_CONFIG.tourism_officer.documentTypeGroups)[number]['documentTypes'][number];
+type MayorOfficeDocumentType = string;
+type MunicipalTreasurerDocumentType = string;
+type SangguniangBayanDocumentType = string;
+type TourismOfficeDocumentType = string;
 
 export const MUNICIPAL_TREASURER_SUPPORTING_DOCUMENT_SUGGESTIONS = {
   'Request for Tax Clearance': [

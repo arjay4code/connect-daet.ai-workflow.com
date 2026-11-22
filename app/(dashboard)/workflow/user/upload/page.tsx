@@ -14,6 +14,10 @@ import {
   TOURISM_OFFICE_ROLE,
   type SubmissionDestinationRole,
 } from '@/lib/workflow/offices';
+import {
+  fetchWorkflowOfficeDocumentTypes,
+  getWorkflowDocumentTypesForOffice,
+} from '@/lib/workflow/document-types';
 import { getSupportingDocumentSuggestions } from '@/lib/workflow/supporting-document-suggestions';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
@@ -78,6 +82,10 @@ export default function UploadPage() {
   const [checkingAttachments, setCheckingAttachments] = useState(false);
   const [description, setDescription] = useState('');
   const [selectedOfficeRole, setSelectedOfficeRole] = useState<SubmissionDestinationRole | ''>('');
+  const [officeDocumentTypes, setOfficeDocumentTypes] = useState<string[]>([]);
+  const [loadingDocumentTypes, setLoadingDocumentTypes] = useState(false);
+  const [documentTypesError, setDocumentTypesError] = useState('');
+  const [documentTypesReloadKey, setDocumentTypesReloadKey] = useState(0);
   const [category, setCategory] = useState('');
   const [otherDocumentType, setOtherDocumentType] = useState('');
   const [selectionNotice, setSelectionNotice] = useState('');
@@ -92,13 +100,45 @@ export default function UploadPage() {
   );
   const extension = file?.name.split('.').pop()?.toLowerCase() ?? '';
   const mimeType = file ? getWorkflowFileMimeType(file.name) : null;
-  const availableDocumentTypes: readonly string[] = selectedOfficeRole
-    ? SUBMISSION_DESTINATION_CONFIG[selectedOfficeRole].categories
-    : [];
+  const availableDocumentTypes = officeDocumentTypes;
   const supportingDocumentSuggestions = useMemo(() => {
     if (!selectedOfficeRole || !category) return [];
     return getSupportingDocumentSuggestions(selectedOfficeRole, category);
   }, [category, selectedOfficeRole]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOfficeDocumentTypes([]);
+    setDocumentTypesError('');
+
+    if (!selectedOfficeRole) {
+      setLoadingDocumentTypes(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadingDocumentTypes(true);
+    void fetchWorkflowOfficeDocumentTypes(supabase, selectedOfficeRole)
+      .then((documentTypes) => {
+        if (!cancelled) {
+          setOfficeDocumentTypes(
+            getWorkflowDocumentTypesForOffice(documentTypes, selectedOfficeRole)
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Office document type load failed:', error);
+        if (!cancelled) setDocumentTypesError('Could not load document types for this office.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDocumentTypes(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentTypesReloadKey, selectedOfficeRole, supabase]);
 
   useEffect(() => {
     return () => {
@@ -440,18 +480,36 @@ export default function UploadPage() {
               if (event.target.value !== 'Other') setOtherDocumentType('');
             }}
             className={`${fieldClass} cursor-pointer`}
-            disabled={!selectedOfficeRole}
+            disabled={!selectedOfficeRole || loadingDocumentTypes || Boolean(documentTypesError)}
             required
           >
             <option value="">
               {!selectedOfficeRole
                 ? 'Select a destination office first'
-                : 'Select a classification / document type'}
+                : loadingDocumentTypes
+                  ? 'Loading document types...'
+                  : documentTypesError
+                    ? 'Document types unavailable'
+                    : officeDocumentTypes.length === 0
+                      ? 'No document types configured'
+                      : 'Select a classification / document type'}
             </option>
             {availableDocumentTypes.map((documentType) => (
               <option key={documentType} value={documentType}>{documentType}</option>
             ))}
           </select>
+          {documentTypesError ? (
+            <p role="alert" className="mt-2 text-[11px] text-rejected-text">
+              {documentTypesError}{' '}
+              <button
+                type="button"
+                onClick={() => setDocumentTypesReloadKey((key) => key + 1)}
+                className="font-semibold underline"
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
           {selectedOfficeRole ? (
             <p className="mt-2 text-[11px] leading-relaxed text-muted-text">
               Options are specific to {SUBMISSION_DESTINATION_CONFIG[selectedOfficeRole].label}.

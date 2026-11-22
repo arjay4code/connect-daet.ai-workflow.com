@@ -7,6 +7,8 @@ import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
 import FileBrowserPagination from '@/components/FileBrowserPagination';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
 import FileBrowserSortSelect from '@/components/FileBrowserSortSelect';
+import WorkflowAuthoritySettings from '@/components/WorkflowAuthoritySettings';
+import WorkflowDocumentTypeSettings from '@/components/WorkflowDocumentTypeSettings';
 import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -245,6 +247,9 @@ export default function AdminDashboard() {
           />
         ))}
       </section>
+
+      <WorkflowDocumentTypeSettings />
+      <WorkflowAuthoritySettings />
 
       <section>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { OFFICE_CONFIG } from '../lib/workflow/offices.ts';
 import {
   getSupportingDocumentSuggestions,
   MAYOR_OFFICE_SUPPORTING_DOCUMENT_SUGGESTIONS,
@@ -67,15 +66,7 @@ test('every standard Mayor office request type has its mapped suggestions', () =
       'Supporting Endorsement Documents',
     ],
   };
-  const requestTypes = OFFICE_CONFIG.mayor_office.categories.filter(
-    (documentType) => documentType !== 'Other'
-  );
-
   assert.deepEqual(MAYOR_OFFICE_SUPPORTING_DOCUMENT_SUGGESTIONS, expectedSuggestions);
-  assert.deepEqual(
-    Object.keys(MAYOR_OFFICE_SUPPORTING_DOCUMENT_SUGGESTIONS).sort(),
-    [...requestTypes].sort()
-  );
 });
 
 test('Other and unknown document types have no predefined suggestions', () => {
@@ -169,17 +160,9 @@ test('every standard Treasurer request type has its mapped suggestions', () => {
       'Proof of Payment',
     ],
   };
-  const requestTypes = OFFICE_CONFIG.municipal_treasurer.categories.filter(
-    (documentType) => documentType !== 'Other'
-  );
-
   assert.deepEqual(
     MUNICIPAL_TREASURER_SUPPORTING_DOCUMENT_SUGGESTIONS,
     expectedSuggestions
-  );
-  assert.deepEqual(
-    Object.keys(MUNICIPAL_TREASURER_SUPPORTING_DOCUMENT_SUGGESTIONS).sort(),
-    [...requestTypes].sort()
   );
   assert.deepEqual(getSupportingDocumentSuggestions('municipal_treasurer', 'Other'), []);
   assert.deepEqual(
@@ -265,15 +248,7 @@ test('every standard Sangguniang Bayan request type has its mapped suggestions',
       'Supporting Justification',
     ],
   };
-  const requestTypes = OFFICE_CONFIG.sangguniang_bayan.categories.filter(
-    (documentType) => documentType !== 'Other'
-  );
-
   assert.deepEqual(SANGGUNIANG_BAYAN_SUPPORTING_DOCUMENT_SUGGESTIONS, expectedSuggestions);
-  assert.deepEqual(
-    Object.keys(SANGGUNIANG_BAYAN_SUPPORTING_DOCUMENT_SUGGESTIONS).sort(),
-    [...requestTypes].sort()
-  );
   assert.deepEqual(
     getSupportingDocumentSuggestions(
       'sangguniang_bayan',
@@ -483,17 +458,9 @@ test('every standard Tourism Office request has its mapped suggestions', () => {
       'Data Privacy Undertaking (when required)',
     ],
   };
-  const requestTypes = OFFICE_CONFIG.tourism_officer.categories.filter(
-    (documentType) => documentType !== 'Other'
-  );
-
   assert.deepEqual(
     TOURISM_OFFICE_SUPPORTING_DOCUMENT_SUGGESTIONS,
     expectedSuggestions
-  );
-  assert.deepEqual(
-    Object.keys(TOURISM_OFFICE_SUPPORTING_DOCUMENT_SUGGESTIONS).sort(),
-    [...requestTypes].sort()
   );
   assert.deepEqual(
     getSupportingDocumentSuggestions(
