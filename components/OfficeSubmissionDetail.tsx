@@ -683,9 +683,15 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       requiresMessage: true,
       confirmation: 'The submission will return to the submitter so they can choose the correct office. This is not a rejection.',
       successMessage: 'Submission returned to the submitter for redirection.',
-      unavailableReason: !['submitted', 'in_process'].includes(sub.status)
-        ? 'Available only while status is Submitted or In Process'
-        : undefined,
+      unavailableReason: routeStateError
+        ? 'Could not verify whether an office assignment is pending'
+        : pendingAssignmentReason || (
+          !['submitted', 'in_process'].includes(sub.status)
+            ? 'Available only while status is Submitted or In Process'
+            : sub.status === 'in_process' && !availableOfficeActions.includes('return_to_submitter')
+              ? 'Unavailable while a forwarded office assignment is active'
+              : undefined
+        ),
     },
     {
       value: 'close_submission',
@@ -725,7 +731,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     for (const officeRole of Object.keys(OFFICE_CONFIG)
       .filter(isOfficeRole)
       .filter((office) => office !== role && office !== responsibleOfficeRole)) {
-      const targetAssignment = pendingAssignments.find((step) => step.office_role === officeRole);
+      const targetAssignment = pendingAssignments.find(
+        (step) => step.office_role === officeRole && step.status === 'pending'
+      );
       const forwardReason = routeStateError
         ? 'Could not verify the office assignment'
         : pendingAssignmentReason
@@ -760,8 +768,12 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           confirmation: `The pending assignment with ${OFFICE_CONFIG[officeRole].label} will be withdrawn.`,
           successMessage: `Assignment with ${OFFICE_CONFIG[officeRole].label} withdrawn.`,
           unavailableReason: targetAssignment
-            ? undefined
-            : `No pending assignment with ${OFFICE_CONFIG[officeRole].label}`,
+            ? routeStateError
+              ? 'Could not verify the office assignment'
+              : sub.status !== 'in_process'
+                ? 'Available only while the submission is In Process'
+                : undefined
+            : `No unreceived pending assignment with ${OFFICE_CONFIG[officeRole].label}`,
         },
       ];
     }

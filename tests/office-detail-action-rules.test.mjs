@@ -43,6 +43,30 @@ test('Request changes remains available only with a verified current revision an
   assert.match(detail, /setAttachments\(detail\.supportingFiles\)/);
 });
 
+test('redirection is unavailable while forwarded assignments are active', () => {
+  const returnForRedirection = actionBlock('return_to_submitter');
+  assert.ok(returnForRedirection, 'Return for redirection action exists');
+  assert.match(returnForRedirection, /pendingAssignmentReason/);
+  assert.match(returnForRedirection, /availableOfficeActions\.includes\('return_to_submitter'\)/);
+});
+
+test('withdrawal is offered only for unreceived assignments while the submission is in process', async () => {
+  assert.match(detail, /step\.office_role === officeRole && step\.status === 'pending'/);
+  assert.match(detail, /sub\.status !== 'in_process'/);
+  const migration = await readFile(
+    new URL('../supabase/migrations/20261122234000_restrict_return_and_assignment_withdrawal.sql', import.meta.url),
+    'utf8',
+  );
+  assert.match(migration, /and step\.status = 'pending'/);
+  assert.match(migration, /Withdraw active forwarded office assignments before returning this submission for redirection/);
+  assert.match(migration, /submission\.status <> 'in_process'/);
+  const withdrawFunction = migration.split(
+    'create or replace function public.withdraw_workflow_assignment',
+  )[1];
+  assert.ok(withdrawFunction, 'withdrawal RPC replacement exists');
+  assert.doesNotMatch(withdrawFunction, /step\.status in \('pending', 'in_progress'\)/);
+});
+
 test('returned submissions close the office composer and submitter conversation', () => {
   assert.match(detail, /const isReturned = sub\.status === 'returned';/);
   assert.match(detail, /const composerClosed = isChangesRequested \|\| isCompleted \|\| isRejected \|\| isWithdrawn \|\| isReturned \|\| historicalRecipientView;/);
