@@ -55,6 +55,7 @@ test('responsible-office actions respect status, pending assignments, and reopen
   const inProcessActions = getAvailableActions({ status: 'in_process', reopen_count: 0 }, [], 'responsible_office');
   assert.ok(inProcessActions.includes('request_changes'));
   assert.ok(inProcessActions.includes('complete_submission'));
+  assert.ok(inProcessActions.includes('return_to_submitter'));
 
   const ownActiveAssignmentActions = getAvailableActions(
     {
@@ -80,8 +81,10 @@ test('responsible-office actions respect status, pending assignments, and reopen
     [{ status: 'pending', office_role: 'mayor_office' }],
     'responsible_office',
   );
+  assert.deepEqual(assignedActions, []);
   assert.ok(!assignedActions.includes('request_changes'));
   assert.ok(!assignedActions.includes('complete_submission'));
+  assert.ok(!assignedActions.includes('return_to_submitter'));
 });
 
 test('submitter actions do not reopen Changes Requested or alter unrelated terminal states', () => {
