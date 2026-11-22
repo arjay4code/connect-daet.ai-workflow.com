@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -127,7 +128,7 @@ export function useRoutePreviews(submissions: RoutePreviewSubmission[]) {
 
       if (!active) return;
       if (routeResult.error || submissionResult.error || auditResult.error) {
-        console.error(
+        logClientError(
           'Could not load workflow route previews:',
           routeResult.error?.message ?? submissionResult.error?.message ?? auditResult.error?.message
         );

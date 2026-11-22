@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -62,7 +63,7 @@ export default function SetupPasswordPage() {
     setSubmitting(true);
     const { error: passwordError } = await supabase.auth.updateUser({ password });
     if (passwordError) {
-      console.error('Could not set the invited account password:', passwordError.message);
+      logClientError('Could not set the invited account password:', passwordError.message);
       setError(passwordError.message);
       setSubmitting(false);
       return;
@@ -70,7 +71,7 @@ export default function SetupPasswordPage() {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.error('Could not load the verified invited account:', userError?.message);
+      logClientError('Could not load the verified invited account:', userError?.message);
       setError('Your password was saved, but we could not load your role. Please sign in to continue.');
       setSubmitting(false);
       return;
@@ -83,7 +84,7 @@ export default function SetupPasswordPage() {
       .single();
 
     if (profileError || !profile) {
-      console.error('Could not load the invited account role:', profileError?.message);
+      logClientError('Could not load the invited account role:', profileError?.message);
       setError('Your password was saved, but we could not load your role. Please contact an administrator.');
       setSubmitting(false);
       return;

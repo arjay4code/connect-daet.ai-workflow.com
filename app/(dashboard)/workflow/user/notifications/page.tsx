@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
@@ -6,6 +7,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import WorkflowNotificationFeed from '@/components/WorkflowNotificationFeed';
 import SwipeDismissNotification from '@/components/SwipeDismissNotification';
+import PageHero from '@/components/ui/PageHero';
+import Icon from '@/components/ui/Icon';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 
 // ─── Styles & Fonts (synced with dashboard) ──────────────────────────────────
 const fonts = {
@@ -176,7 +180,7 @@ export default function NotificationsPage() {
       }
     } catch (error) {
       const message = getErrorMessage(error, 'Could not load notifications.');
-      console.error('Failed to load submitter notifications:', message);
+      logClientError('Failed to load requestee notifications:', message);
       setErrorMessage(message);
       if (!append) setNotifications([]);
       setHasMore(false);
@@ -289,14 +293,13 @@ export default function NotificationsPage() {
   return (
     <div className="w-full">
       <div>
-        <header className="mb-8 flex flex-col justify-between gap-3 sm:flex-row sm:items-end max-md:mb-5">
-          <div>
-            <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Live updates
-            </p>
-            <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Notifications</h1>
-          </div>
-        </header>
+        <PageHero
+          greet={false}
+          eyebrow="Live updates"
+          icon="bell"
+          title="Notifications"
+          description="Updates on your requests appear here as offices act on them."
+        />
 
         <WorkflowNotificationFeed
           busy={actionBusy || loading}
@@ -315,20 +318,18 @@ export default function NotificationsPage() {
         )}
 
         {loading && notifications.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading notifications...
-          </div>
+          <SkeletonRows rows={4} label="Loading notifications…" />
         ) : notifications.length === 0 ? (
-          <div className="rounded-2xl border border-warm-border bg-card py-20 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-sidebar text-lg text-muted-text" aria-hidden="true">🔔</div>
+          <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-20 text-center">
+            <div className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay"><Icon name="bell" size={24} /></div>
             <p className={`${fonts.serif} text-2xl text-warm-text`}>No notifications yet</p>
             <p className="mt-2 text-xs text-muted-text">Updates on your submissions will appear here.</p>
           </div>
         ) : (
           <div className="space-y-6">
             {groups.map(group => (
-              <section key={group.title}>
-                <h2 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-text">{group.title}</h2>
+              <section key={group.title} className="ui-fade-up">
+                <h2 className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-text"><Icon name="calendar" size={13} />{group.title}</h2>
 
                 <div role="list" className="space-y-2">
                   {group.items.map((note) => {

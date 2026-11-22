@@ -1,5 +1,6 @@
 // src/hooks/useUsers.ts
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -33,7 +34,7 @@ export function useUsers() {
       .eq('id', userId);
 
     if (error) {
-      console.error('Failed to update role:', error.message);
+      logClientError('Failed to update role:', error.message);
       return;
     }
 

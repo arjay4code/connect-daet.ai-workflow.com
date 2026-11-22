@@ -7,7 +7,7 @@ import {
 /**
  * complete  – done
  * active    – where the submission is right now
- * attention – waiting on someone outside the office flow (e.g. the submitter)
+ * attention – waiting on someone outside the office flow (e.g. the requestee)
  * rejected  – a rejection
  * skipped   – stopped or withdrawn
  * pending   – not reached yet
@@ -121,7 +121,7 @@ export function buildRoutingPipeline({
   const lastTimeFor = (...actions: string[]) =>
     [...events].reverse().find((event) => actions.includes(event.action_type))?.created_at ?? null;
 
-  // The office currently responsible: where the submitter sent it (after any redirection).
+  // The office currently responsible: where the requestee sent it (after any redirection).
   const responsibleRoleValue = selectedOfficeRole ?? initialDestinationRole ?? null;
   const responsibleRole = isOfficeRole(responsibleRoleValue) ? responsibleRoleValue : null;
   const responsibleOffice = officeLabel(responsibleRole);
@@ -151,12 +151,12 @@ export function buildRoutingPipeline({
     steps.push({
       key: 'withdrawn',
       title: 'Withdrawn',
-      subtitle: 'By the submitter',
+      subtitle: 'By the requestee',
       state: 'skipped',
       detail: 'Withdrawn',
       timestamp: lastTimeFor('SUBMISSION_WITHDRAWN'),
     });
-    return { steps, whereabouts: 'Withdrawn by the submitter', whereaboutsState: 'skipped' };
+    return { steps, whereabouts: 'Withdrawn by the requestee', whereaboutsState: 'skipped' };
   }
 
   if (!responsibleRole) {
@@ -223,9 +223,9 @@ export function buildRoutingPipeline({
           ? 'attention'
           : 'skipped',
       detail: response
-        ? 'Submitter responded'
+        ? 'Requestee responded'
         : isLatest && CHANGES_STATUSES.includes(status)
-          ? 'Waiting for the submitter'
+          ? 'Waiting for the requestee'
           : 'No response recorded',
       timestamp: response?.created_at ?? request.created_at,
       sortTime: requestTime,
@@ -238,7 +238,7 @@ export function buildRoutingPipeline({
       title: status === 'returned_for_requirements' ? 'Requirements requested' : 'Changes requested',
       subtitle: requirementsStep ? officeLabel(requirementsStep.office_role) : responsibleOffice,
       state: 'attention',
-      detail: 'Waiting for the submitter',
+      detail: 'Waiting for the requestee',
       timestamp: requirementsStep?.requirements_requested_at ?? null,
       sortTime: timeValue(requirementsStep?.requirements_requested_at),
     });
@@ -288,12 +288,12 @@ export function buildRoutingPipeline({
       title: 'Returned for redirection',
       subtitle: responsibleOffice,
       state: 'attention',
-      detail: 'Submitter to choose another office',
+      detail: 'Requestee to choose another office',
       timestamp: lastTimeFor('RETURNED_TO_SUBMITTER'),
     });
     return {
       steps,
-      whereabouts: 'With the submitter to choose another office',
+      whereabouts: 'With the requestee to choose another office',
       whereaboutsState: 'attention',
     };
   }
@@ -301,12 +301,12 @@ export function buildRoutingPipeline({
     steps.push({
       key: 'withdrawn',
       title: 'Withdrawn',
-      subtitle: 'By the submitter',
+      subtitle: 'By the requestee',
       state: 'skipped',
       detail: 'Withdrawn',
       timestamp: lastTimeFor('SUBMISSION_WITHDRAWN'),
     });
-    return { steps, whereabouts: 'Withdrawn by the submitter', whereaboutsState: 'skipped' };
+    return { steps, whereabouts: 'Withdrawn by the requestee', whereaboutsState: 'skipped' };
   }
 
   const openAssignment = [...assignments].reverse().find((step) => ['pending', 'in_progress'].includes(step.status));
@@ -321,7 +321,7 @@ export function buildRoutingPipeline({
     };
   }
   if (CHANGES_STATUSES.includes(status)) {
-    return { steps, whereabouts: 'With the submitter to make changes', whereaboutsState: 'attention' };
+    return { steps, whereabouts: 'With the requestee to make changes', whereaboutsState: 'attention' };
   }
 
   // Open and back with the responsible office.

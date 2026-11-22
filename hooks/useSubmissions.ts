@@ -1,5 +1,6 @@
 // src/hooks/useSubmissions.ts
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -65,7 +66,7 @@ export function useSubmissions(statusFilter?: string) {
       .update({ status: 'approved' })
       .eq('id', id);
 
-    if (error) { console.error('Approve error:', error.message); return; }
+    if (error) { logClientError('Approve error:', error.message); return; }
 
     await supabase.from('audit_logs').insert({
       submission_id: id,
@@ -82,7 +83,7 @@ export function useSubmissions(statusFilter?: string) {
       .update({ status: 'declined_by_admin', rejection_comment: comment })
       .eq('id', id);
 
-    if (error) { console.error('Decline error:', error.message); return; }
+    if (error) { logClientError('Decline error:', error.message); return; }
 
     await supabase.from('audit_logs').insert({
       submission_id: id,

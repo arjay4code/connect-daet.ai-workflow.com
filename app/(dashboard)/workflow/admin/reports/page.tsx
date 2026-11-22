@@ -8,6 +8,10 @@ import {
   calculateWorkflowReportAverages,
   formatReportDuration,
 } from '@/lib/workflow/report-metrics';
+import Icon, { type IconName } from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
+import StatCard, { type StatTone } from '@/components/ui/StatCard';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -75,15 +79,6 @@ const getStatusClasses = (status: string) => {
   return 'bg-sidebar text-muted-text';
 };
 
-// ─── Small building blocks ───────────────────────────────────────────────────
-function StatCard({ label, value, alert = false }: { label: string; value: string | number; alert?: boolean }) {
-  return (
-    <div className={`rounded-2xl border p-5 max-md:p-3.5 ${alert ? 'border-rejected-bg bg-rejected-bg/50' : 'border-warm-border bg-card'}`}>
-      <p className="mb-2 text-[11px] font-medium text-muted-text">{label}</p>
-      <p className={`${fonts.serif} text-[32px] leading-none max-md:text-[26px] ${alert ? 'text-rejected-text' : 'text-warm-text'}`}>{value}</p>
-    </div>
-  );
-}
 
 export default function ReportsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -158,15 +153,15 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const reportCards = [
-    { label: 'Total submissions', value: filteredRows.length },
-    { label: 'In progress', value: filteredRows.filter((row) => IN_PROGRESS_STATUSES.has(row.status)).length },
-    { label: 'Completed', value: filteredRows.filter((row) => row.status === 'completed' || row.status === 'approved').length },
-    { label: 'Rejected / returned', value: filteredRows.filter((row) => REJECTED_OR_RETURNED_STATUSES.has(row.status)).length },
-    { label: 'Avg. time to review', value: formatReportDuration(reportAverages.timeToReview) },
-    { label: 'Avg. review to decision', value: formatReportDuration(reportAverages.reviewToDecision) },
-    { label: 'Avg. time to completion', value: formatReportDuration(reportAverages.timeToCompletion) },
-    { label: 'Overdue', value: overdueRows.length, alert: overdueRows.length > 0 },
+  const reportCards: { label: string; value: string | number; icon: IconName; tone: StatTone }[] = [
+    { label: 'Total submissions', value: filteredRows.length, icon: 'files', tone: 'primary' },
+    { label: 'In progress', value: filteredRows.filter((row) => IN_PROGRESS_STATUSES.has(row.status)).length, icon: 'hourglass', tone: 'pending' },
+    { label: 'Completed', value: filteredRows.filter((row) => row.status === 'completed' || row.status === 'approved').length, icon: 'file-check', tone: 'approved' },
+    { label: 'Rejected / returned', value: filteredRows.filter((row) => REJECTED_OR_RETURNED_STATUSES.has(row.status)).length, icon: 'x', tone: 'rejected' },
+    { label: 'Avg. time to review', value: formatReportDuration(reportAverages.timeToReview), icon: 'clock', tone: 'review' },
+    { label: 'Avg. review to decision', value: formatReportDuration(reportAverages.reviewToDecision), icon: 'scan', tone: 'review' },
+    { label: 'Avg. time to completion', value: formatReportDuration(reportAverages.timeToCompletion), icon: 'check', tone: 'approved' },
+    { label: 'Overdue', value: overdueRows.length, icon: 'alert', tone: overdueRows.length > 0 ? 'rejected' : 'neutral' },
   ];
 
   const hasDateFilter = !!fromDate || !!toDate;
@@ -174,15 +169,13 @@ export default function ReportsPage() {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
-        </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Reports</h1>
-        <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Workflow analytics. Covering <span className="text-warm-text">{filteredRows.length}</span> submissions.
-        </p>
-      </div>
+      <PageHero
+        greet={false}
+        eyebrow="Admin workspace"
+        icon="chart"
+        title="Reports"
+        description={<>Workflow analytics. Covering <span className="text-warm-text">{filteredRows.length}</span> submissions.</>}
+      />
 
       {/* Filters */}
       <div className="mb-6 max-md:mb-4">
@@ -199,9 +192,9 @@ export default function ReportsPage() {
             <button
               onClick={exportCsv}
               disabled={loading || filteredRows.length === 0}
-              className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50 sm:flex-none"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50 sm:flex-none"
             >
-              Export CSV
+              <Icon name="download" size={15} /> Export CSV
             </button>
             {hasDateFilter && (
               <button
@@ -221,9 +214,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="ui-stagger mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {reportCards.map((card) => (
-          <StatCard key={card.label} label={card.label} value={card.value} alert={card.alert} />
+          <StatCard as="div" key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} loading={loading} />
         ))}
       </div>
 
@@ -235,11 +228,12 @@ export default function ReportsPage() {
 
       {/* Report table */}
       {loading ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading report...
-        </div>
+        <SkeletonRows rows={4} label="Loading report…" />
       ) : filteredRows.length === 0 ? (
-        <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+        <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
+          <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+            <Icon name="calendar" size={24} />
+          </span>
           <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
           <p className="mt-2 text-xs text-muted-text">No records found for this date range.</p>
           {hasDateFilter && (
@@ -252,7 +246,7 @@ export default function ReportsPage() {
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+        <div className="ui-fade-up overflow-hidden rounded-2xl border border-warm-border bg-card">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left">
               <thead>

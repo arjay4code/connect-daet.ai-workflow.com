@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,6 +11,11 @@ import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
 import { getDashboardSubmissionPreview } from '@/lib/workflow/file-browser';
 import { useRoutePreviews, type WorkflowRoutePreview } from '@/lib/workflow/useRoutePreviews';
 import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
+import AnimatedNumber from '@/components/ui/AnimatedNumber';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
+import StatCard from '@/components/ui/StatCard';
 
 // ─── Styles & Fonts ──────────────────────────────────────────────────────────
 const fonts = {
@@ -128,10 +134,10 @@ function SubmissionCard({
   const router = useRouter();
 
   return (
-    <article className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5">
+    <article className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 ui-lift hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5">
       <div className="flex min-w-0 items-center gap-4 sm:col-span-7">
         <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
-          <span className="text-lg leading-4" aria-hidden="true">▤</span>
+          <Icon name="file" size={18} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
           <span className="mt-1 text-[8px] font-semibold uppercase">{sub.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
         </div>
         <div className="min-w-0">
@@ -161,13 +167,13 @@ function SubmissionCard({
           onClick={() => onPreview(sub)}
           className="inline-flex h-10 items-center gap-2 rounded-full border border-warm-border px-4 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full max-md:justify-center"
         >
-          <span aria-hidden="true">⌕</span> Preview
+          <Icon name="eye" size={15} /> Preview
         </button>
         <button
           onClick={() => router.push(`/workflow/user/file_registry/${sub.id}`)}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full max-md:justify-center"
+          className="group/log inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full max-md:justify-center"
         >
-          View full log <span aria-hidden="true">→</span>
+          View full log <Icon name="arrow-right" size={14} className="transition-transform duration-200 group-hover/log:translate-x-0.5" />
         </button>
       </div>
       <div className="sm:col-span-12">
@@ -221,7 +227,7 @@ export default function WorkflowDashboard() {
         'Fetching submissions'
       );
 
-      if (error) console.error('Fetch error:', error);
+      if (error) logClientError('Fetch error:', error);
       if (data) setSubmissions(data);
 
       const { data: rewardEntries, error: rewardError } = await withTimeout(
@@ -233,13 +239,13 @@ export default function WorkflowDashboard() {
         'Fetching reward balance'
       );
       if (rewardError) {
-        console.error('Reward balance fetch error:', rewardError);
+        logClientError('Reward balance fetch error:', rewardError);
         setRewardBalance(null);
       } else {
         setRewardBalance((rewardEntries ?? []).reduce((total, entry) => total + entry.points, 0));
       }
     } catch (err) {
-      console.error('Dashboard load failed:', err);
+      logClientError('Dashboard load failed:', err);
     } finally {
       // Always stop the "Syncing records..." spinner, even if something failed or timed out
       setLoading(false);
@@ -287,33 +293,33 @@ export default function WorkflowDashboard() {
   return (
     <div className="w-full">
       <div>
-        <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-center max-md:mb-5 max-md:gap-3">
-          <div>
-            <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2"><span className="h-1.5 w-1.5 rounded-full bg-clay" /> Your workspace</p>
-            <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>My submissions</h1>
-            <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">Signed in as <span className="text-warm-text">{user?.email}</span></p>
-          </div>
-          <a
-            href="/workflow/user/upload"
-            className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text sm:self-auto max-md:w-full max-md:self-stretch"
-          >
-            <span className="text-lg font-normal leading-none" aria-hidden="true">+</span> New submission
-          </a>
-        </div>
+        <PageHero
+          eyebrow="Your workspace"
+          icon="sparkles"
+          title="My submissions"
+          description={<>Signed in as <span className="text-warm-text">{user?.email}</span></>}
+          actions={
+            <a
+              href="/workflow/user/upload"
+              className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-warm-text max-md:w-full"
+            >
+              <Icon name="plus" size={16} className="transition-transform duration-300 group-hover:rotate-90" /> New submission
+            </a>
+          }
+        />
 
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 max-md:mb-6 max-md:gap-3">
-          {stats.map((stat, index) => (
-            <div key={stat.label} className="min-h-39.5 rounded-2xl border border-warm-border bg-card p-5 max-md:min-h-0 max-md:p-3.5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-medium text-muted-text">{stat.label === 'Reward Bal' ? 'Reward balance' : stat.label === 'Logged Files' ? 'Logged files' : stat.label}</h2>
-                <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base ${index === 1 ? 'bg-approved-bg text-approved-text' : index === 2 ? 'bg-sidebar text-pending-text' : 'bg-clay-soft text-clay'}`} aria-hidden="true">
-                  {index === 1 ? '✓' : index === 2 ? '♧' : '▤'}
-                </span>
-              </div>
-              <p className={`${fonts.serif} mt-3 text-[34px] leading-none text-warm-text max-md:mt-2 max-md:text-[27px]`}>{stat.value}</p>
-              <p className="mt-3 text-[11px] text-muted-text max-md:mt-1.5">{index === 0 ? 'All your submitted documents' : index === 1 ? 'Processed and completed' : 'Earned for eligible submissions'}</p>
-            </div>
-          ))}
+        <div className="ui-stagger mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 max-md:mb-6 max-md:gap-3">
+          <StatCard as="div" label="Logged files" value={stats[0].value} hint="All your submitted documents" icon="files" tone="primary" loading={loading} />
+          <StatCard as="div" label="Cleared" value={stats[1].value} hint="Processed and completed" icon="file-check" tone="approved" loading={loading} />
+          <StatCard
+            as="div"
+            label="Reward balance"
+            value={rewardBalance === null ? 'Unavailable' : <><AnimatedNumber value={rewardBalance} /> <span className="text-lg text-muted-text">pts</span></>}
+            hint="Earned for eligible submissions"
+            icon="gift"
+            tone="pending"
+            loading={loading}
+          />
         </div>
 
         <div className="mb-4 flex items-center justify-between">
@@ -356,15 +362,22 @@ export default function WorkflowDashboard() {
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Syncing records...
-          </div>
+          <SkeletonRows rows={3} label="Syncing records…" />
         ) : (
-          <div className="space-y-3">
+          <div className="ui-stagger space-y-3">
             {submissions.length === 0 ? (
               <div className="rounded-2xl border border-warm-border bg-card py-20 text-center">
-                <p className={`${fonts.serif} text-2xl text-warm-text`}>No submissions yet</p>
-                <p className="mt-2 text-xs text-muted-text">Your submitted documents will appear here.</p>
+                <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+                  <Icon name="send" size={24} />
+                </span>
+                <p className={`${fonts.serif} text-2xl text-warm-text`}>Send your first request</p>
+                <p className="mt-2 text-xs text-muted-text">Your submitted documents will appear here, with every step tracked.</p>
+                <Link
+                  href="/workflow/user/upload"
+                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
+                >
+                  <Icon name="plus" size={15} /> New submission
+                </Link>
               </div>
             ) : filteredSubmissions.length === 0 ? (
               <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">

@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useMemo, useState } from 'react';
 import FilePreview from '@/components/FilePreview';
@@ -59,7 +60,7 @@ function isRequestActionType(actionType: string) {
 function legacyEventLabel(actionType: string) {
   if (isRequestActionType(actionType)) return 'Changes requested';
   if (actionType === 'CHANGES_RESPONDED' || actionType === 'REQUIREMENTS_RESUBMITTED') {
-    return 'Submitter responded to the request';
+    return 'Requestee responded to the request';
   }
   return 'Revision submitted';
 }
@@ -242,7 +243,7 @@ export default function WorkflowRevisionTimeline({
       const message = downloadErrorValue instanceof Error
         ? downloadErrorValue.message
         : 'Could not download this revision file.';
-      console.error('Revision file download failed:', downloadErrorValue);
+      logClientError('Revision file download failed:', downloadErrorValue);
       setDownloadError(message);
     } finally {
       setDownloadingFileId(null);
@@ -264,7 +265,7 @@ export default function WorkflowRevisionTimeline({
       const message = previewErrorValue instanceof Error
         ? previewErrorValue.message
         : 'Could not preview this revision file.';
-      console.error('Revision file preview failed:', previewErrorValue);
+      logClientError('Revision file preview failed:', previewErrorValue);
       setDownloadError(message);
     } finally {
       setPreviewingFileId(null);
@@ -313,7 +314,7 @@ export default function WorkflowRevisionTimeline({
                 <>
                   <p className="text-xs font-semibold text-warm-text">Version {entry.revision.revisionNo}</p>
                   <time dateTime={entry.createdAt} className="mt-0.5 block text-[10px] text-muted-text">
-                    Uploaded by the submitter · {formatTimestamp(entry.createdAt)}
+                    Uploaded by the requestee · {formatTimestamp(entry.createdAt)}
                   </time>
                   <RevisionFileDiff
                     revision={entry.revision}
@@ -375,7 +376,7 @@ export default function WorkflowRevisionTimeline({
                   </p>
                   <p className="mt-1 text-[10px] font-medium text-muted-text">
                     {entry.request.status === 'open'
-                      ? 'Waiting for the submitter’s response'
+                      ? 'Waiting for the requestee’s response'
                       : entry.request.status === 'fulfilled'
                         ? 'Addressed in a submitted revision'
                         : 'No longer active because the request was permanently closed'}

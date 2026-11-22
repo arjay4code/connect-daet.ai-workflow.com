@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
@@ -6,6 +7,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import WorkflowNotificationFeed from '@/components/WorkflowNotificationFeed';
 import SwipeDismissNotification from '@/components/SwipeDismissNotification';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import { getOfficeFileManagementPath, type OfficeRole } from '@/lib/workflow/offices';
 
@@ -167,7 +171,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
       }
     } catch (error) {
       const message = getErrorMessage(error, 'Could not load notifications.');
-      console.error('Failed to load approver notifications:', message);
+      logClientError('Failed to load approver notifications:', message);
       setErrorMessage(message);
       if (!append) setNotifications([]);
       setHasMore(false);
@@ -258,7 +262,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
     void fetchNotifications(null);
     void supabase.auth.getUser().then(({ data, error }) => {
       if (error) {
-        console.error('Could not start approver notification updates:', error.message);
+        logClientError('Could not start approver notification updates:', error.message);
         return;
       }
       if (!active || !data.user) return;
@@ -286,7 +290,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
         )
         .subscribe((status, subscribeError) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.error(
+            logClientError(
               'Approver notification realtime subscription failed:',
               subscribeError?.message || status
             );
@@ -312,17 +316,17 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Office workspace
-        </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Notifications</h1>
-        <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          {loading
+      <PageHero
+        greet={false}
+        eyebrow="Office workspace"
+        icon="bell"
+        title="Notifications"
+        description={
+          loading
             ? 'Checking for updates...'
-            : `${needsReviewCount} ${needsReviewCount === 1 ? 'submission needs' : 'submissions need'} your review · ${unreadCount} unread`}
-        </p>
-      </div>
+            : `${needsReviewCount} ${needsReviewCount === 1 ? 'submission needs' : 'submissions need'} your review · ${unreadCount} unread`
+        }
+      />
 
       <WorkflowNotificationFeed
         busy={actionBusy || loading}
@@ -347,16 +351,17 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
       </div>
 
       {loading && notifications.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Syncing notifications...
-        </div>
+        <SkeletonRows rows={4} label="Syncing notifications…" />
       ) : notifications.length === 0 ? (
-        <div className="rounded-2xl border border-warm-border bg-card py-20 text-center">
+        <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-20 text-center">
+          <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+            <Icon name="bell" size={24} />
+          </span>
           <p className={`${fonts.serif} text-2xl text-warm-text`}>No notifications yet</p>
           <p className="mt-2 text-xs text-muted-text">New submissions and updates will appear here.</p>
         </div>
       ) : (
-        <div role="list" className="space-y-3">
+        <div role="list" className="ui-fade-up space-y-3">
           {notifications.map((note) => {
             const config = getStatusConfig(note.status);
             const title = note.notification_title || note.event_type?.replaceAll('_', ' ') || 'Update';
@@ -398,7 +403,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
                       </h3>
 
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-text">
-                        <span className="truncate">From {note.requester_email || note.user_email || 'unknown submitter'}</span>
+                        <span className="truncate">From {note.requester_email || note.user_email || 'unknown requestee'}</span>
                         <span aria-hidden="true">·</span>
                         <span>{timeAgo(note.updated_at)}</span>
                         {note.tracking_number && (

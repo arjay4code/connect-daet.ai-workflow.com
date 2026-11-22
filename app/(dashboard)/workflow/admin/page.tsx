@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -17,6 +18,10 @@ import {
   type FileBrowserSort,
 } from '@/lib/workflow/file-browser';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
+import Icon, { type IconName } from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
+import StatCard, { type StatTone } from '@/components/ui/StatCard';
 
 type Role =
   | 'submitter'
@@ -137,7 +142,7 @@ export default function AdminDashboard() {
       setSubmissions(nextSubmissions);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load monitoring data.';
-      console.error('Admin monitoring refresh failed:', message);
+      logClientError('Admin monitoring refresh failed:', message);
       setLoadError(message);
     } finally {
       setLoading(false);
@@ -190,7 +195,7 @@ export default function AdminDashboard() {
     try {
       await downloadFile(await getFileUrl(supabase, previewSubmission), previewSubmission.file_name);
     } catch (error) {
-      console.error('Admin document download failed:', error);
+      logClientError('Admin document download failed:', error);
       setPreviewError(error instanceof Error ? error.message : 'Could not download this document.');
     }
   };
@@ -199,22 +204,25 @@ export default function AdminDashboard() {
       .includes(submission.status.toLowerCase())
   ).length;
   const completedCount = submissions.filter((submission) => submission.status.toLowerCase() === 'completed').length;
-  const statCards = [
-    { label: 'Accounts monitored', value: profiles.length, hint: 'All registered roles', icon: '♧', styles: 'bg-clay-soft text-clay' },
-    { label: 'Submitted documents', value: submissions.length, hint: 'Across the system', icon: '▤', styles: 'bg-review-bg text-review-text' },
-    { label: 'In progress', value: pendingCount, hint: 'Awaiting a workflow step', icon: '◷', styles: 'bg-pending-bg text-pending-text' },
-    { label: 'Completed', value: completedCount, hint: 'Finished workflow requests', icon: '✓', styles: 'bg-approved-bg text-approved-text' },
+  const statCards: { label: string; value: number; hint: string; icon: IconName; tone: StatTone }[] = [
+    { label: 'Accounts monitored', value: profiles.length, hint: 'All registered roles', icon: 'users', tone: 'primary' },
+    { label: 'Submitted documents', value: submissions.length, hint: 'Across the system', icon: 'files', tone: 'review' },
+    { label: 'In progress', value: pendingCount, hint: 'Awaiting a workflow step', icon: 'hourglass', tone: 'pending' },
+    { label: 'Completed', value: completedCount, hint: 'Finished workflow requests', icon: 'file-check', tone: 'approved' },
   ];
 
   return (
     <div className="w-full">
-      <header className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
-        </p>
-        <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">System monitoring</h1>
-        <p className="mt-2 text-xs text-muted-text">Monitor accounts by role and track every submitted document.</p>
-      </header>
+      <PageHero
+        eyebrow="Admin workspace"
+        icon="shield-check"
+        title="System monitoring"
+        description={
+          pendingCount > 0
+            ? `${pendingCount} request${pendingCount === 1 ? '' : 's'} still moving through the workflow. Monitor accounts by role and track every submitted document.`
+            : 'Monitor accounts by role and track every submitted document.'
+        }
+      />
 
       {loadError && (
         <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
@@ -223,16 +231,17 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <section aria-label="System totals" className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 max-md:mb-6 max-md:gap-3">
+      <section aria-label="System totals" className="ui-stagger mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 max-md:mb-6 max-md:gap-3">
         {statCards.map((card) => (
-          <article key={card.label} className="rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-medium text-muted-text">{card.label}</h2>
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base ${card.styles}`} aria-hidden="true">{card.icon}</span>
-            </div>
-            <p className="mt-3 font-serif text-[34px] leading-none text-warm-text max-md:mt-2 max-md:text-[27px]">{loading ? '—' : card.value}</p>
-            <p className="mt-3 text-[11px] text-muted-text max-md:mt-1.5">{card.hint}</p>
-          </article>
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            hint={card.hint}
+            icon={card.icon}
+            tone={card.tone}
+            loading={loading && submissions.length === 0}
+          />
         ))}
       </section>
 
@@ -250,9 +259,12 @@ export default function AdminDashboard() {
         </div>
 
         {loading && submissions.length === 0 ? (
-          <div className="rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">Loading submitted documents...</div>
+          <SkeletonRows rows={3} label="Loading submitted documents…" />
         ) : submissions.length === 0 ? (
-          <div className="rounded-2xl border border-warm-border bg-card py-14 text-center">
+          <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-14 text-center">
+            <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+              <Icon name="inbox" size={26} />
+            </span>
             <p className="font-serif text-2xl text-warm-text">No submissions yet</p>
             <p className="mt-2 text-xs text-muted-text">New user documents will appear here.</p>
           </div>
@@ -260,7 +272,9 @@ export default function AdminDashboard() {
           <>
             <div className="mb-4 space-y-3">
               <div className="relative">
-                <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
+                <span className="pointer-events-none absolute left-5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">
+                  <Icon name="search" size={15} /> SEARCH //
+                </span>
                 <input
                   type="search"
                   value={fileSearch}
@@ -270,7 +284,7 @@ export default function AdminDashboard() {
                   }}
                   aria-label="Search files by name, tracking number, or requester email"
                   placeholder="Find a file by name..."
-                  className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+                  className="h-12 w-full rounded-full border border-warm-border bg-card pl-32 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -297,17 +311,17 @@ export default function AdminDashboard() {
                 <p className="mt-2 text-xs text-muted-text">No files match your search or filters.</p>
               </div>
             ) : <>
-            <div className="space-y-3">
+            <div className="ui-stagger space-y-3">
             {paginatedSubmissions.items.map((submission) => {
               const profile = profilesById.get(submission.user_id);
               return (
                 <article
                   key={submission.id}
-                  className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                  className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 ui-lift hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
                 >
                   <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
                     <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
-                      <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                      <Icon name="file" size={18} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
                       <span className="mt-1 text-[8px] font-semibold uppercase">{submission.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -393,7 +407,7 @@ export default function AdminDashboard() {
               <div className="min-w-0">
                 <h2 id="submission-preview-title" className="truncate text-sm font-semibold text-warm-text">{previewSubmission.file_name}</h2>
                 <p className="mt-1 text-[11px] text-muted-text">
-                  {profilesById.get(previewSubmission.user_id)?.email || 'Unknown submitter'} · {previewSubmission.tracking_number || 'Tracking pending'}
+                  {profilesById.get(previewSubmission.user_id)?.email || 'Unknown requestee'} · {previewSubmission.tracking_number || 'Tracking pending'}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

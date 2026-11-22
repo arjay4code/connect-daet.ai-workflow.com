@@ -1,9 +1,13 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import WorkflowNotificationControls, { type NotificationFilter } from '@/components/WorkflowNotificationControls';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -133,7 +137,7 @@ export default function AdminNotificationsPage() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load notifications.';
-      console.error('Failed to load admin notifications:', message);
+      logClientError('Failed to load admin notifications:', message);
       setErrorMessage(message);
       setNotifications([]);
       setHasNextPage(false);
@@ -240,15 +244,13 @@ export default function AdminNotificationsPage() {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-clay" /> Admin workspace · Live
-        </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Registry feed</h1>
-        <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Latest activity across all submissions. Showing <span className="text-warm-text">{notifications.length}</span> updates, including <span className="text-warm-text">{notifications.filter((notification) => notification.is_unread).length}</span> unread for your account.
-        </p>
-      </div>
+      <PageHero
+        greet={false}
+        eyebrow="Admin workspace · Live"
+        icon="bell"
+        title="Registry feed"
+        description={<>Latest activity across all submissions. Showing <span className="text-warm-text">{notifications.length}</span> updates, including <span className="text-warm-text">{notifications.filter((notification) => notification.is_unread).length}</span> unread for your account.</>}
+      />
 
       <WorkflowNotificationControls
         filter={filter}
@@ -274,11 +276,12 @@ export default function AdminNotificationsPage() {
 
       {/* Feed */}
       {loading ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading activity...
-        </div>
+        <SkeletonRows rows={4} label="Loading activity…" />
       ) : notifications.length === 0 ? (
-        <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+        <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
+          <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+            <Icon name="bell" size={24} />
+          </span>
           <p className={`${fonts.serif} text-2xl text-warm-text`}>
             {filter === 'unread' ? 'No unread notifications' : 'Nothing here'}
           </p>
@@ -287,14 +290,14 @@ export default function AdminNotificationsPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="ui-stagger space-y-3">
           {notifications.map((note) => {
             const status = getStatusConfig(note.notification_status || note.status || '');
 
             return (
               <article
                 key={note.id}
-                className="flex flex-col gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:flex-row sm:items-center sm:justify-between max-md:px-3.5 max-md:py-3.5"
+                className="ui-lift flex flex-col gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 hover:border-clay-border sm:flex-row sm:items-center sm:justify-between max-md:px-3.5 max-md:py-3.5"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-text">

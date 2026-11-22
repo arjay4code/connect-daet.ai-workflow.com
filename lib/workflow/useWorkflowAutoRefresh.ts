@@ -41,14 +41,18 @@ export function useWorkflowAutoRefresh(
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') refreshRef.current();
     };
+    // Reload as soon as the connection comes back after a "Failed to fetch".
+    const handleOnline = () => refreshRef.current();
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleVisibility);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       if (timer !== null) clearTimeout(timer);
       window.clearInterval(pollingTimer);
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('online', handleOnline);
       void supabase.removeChannel(channel);
     };
   }, [intervalMs, supabase]);

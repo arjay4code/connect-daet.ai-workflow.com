@@ -52,6 +52,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Only active administrators can view system logs.' }, { status: 403 });
   }
 
+  // Optional date filter for activity events: ?from=<ISO>&to=<ISO> (to is exclusive).
+  const fromParam = request.nextUrl.searchParams.get('from');
+  const toParam = request.nextUrl.searchParams.get('to');
+  let dateRange: { from: string; to: string } | null = null;
+  if (fromParam || toParam) {
+    const from = new Date(fromParam ?? '');
+    const to = new Date(toParam ?? '');
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) {
+      return NextResponse.json({ error: 'The selected date filter is invalid.' }, { status: 400 });
+    }
+    dateRange = { from: from.toISOString(), to: to.toISOString() };
+  }
+
+  let eventsQuery = adminClient
+    .from('system_activity_events')
+    .select('id, actor_id, actor_role, event_type, submission_id, details, created_at')
+    .order('created_at', { ascending: false });
+  if (dateRange) {
+    eventsQuery = eventsQuery.gte('created_at', dateRange.from).lt('created_at', dateRange.to);
+  }
+
   const [
     { data: officers, error: officersError },
     { data: events, error: eventsError },
@@ -62,11 +83,7 @@ export async function GET(request: NextRequest) {
       .eq('is_removed', false)
       .in('role', OFFICER_ROLES)
       .order('full_name', { ascending: true }),
-    adminClient
-      .from('system_activity_events')
-      .select('id, actor_id, actor_role, event_type, submission_id, details, created_at')
-      .order('created_at', { ascending: false })
-      .limit(150),
+    eventsQuery.limit(dateRange ? 500 : 150),
   ]);
   if (officersError || eventsError) {
     console.error('Could not load system monitoring data:', officersError?.message || eventsError?.message);

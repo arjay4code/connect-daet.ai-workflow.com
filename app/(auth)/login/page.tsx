@@ -67,10 +67,13 @@ export default function LoginPage() {
     });
 
     if (signInError) {
+      const isRestricted = signInError.code === 'user_banned' || /user is banned/i.test(signInError.message);
       setError(
         signInError.code === 'email_not_confirmed'
           ? 'Confirm your email address before signing in.'
-          : signInError.message
+          : isRestricted
+            ? 'Your account has been restricted. Please contact your system administrator to restore access.'
+            : signInError.message
       );
       setCanResendConfirmation(signInError.code === 'email_not_confirmed');
       setLoading(false);
