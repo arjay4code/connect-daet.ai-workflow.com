@@ -36,6 +36,7 @@ import {
 } from '@/lib/workflow/revisions';
 import { loadWorkflowSubmissionDetail } from '@/lib/workflow/submission-detail';
 import { useSubmissionDetailRealtime } from '@/lib/workflow/useSubmissionDetailRealtime';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 
 // ─── Styles & Fonts (synced with the user file page) ─────────────────────────
 const fonts = {
@@ -247,6 +248,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
   const { id } = useParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { userId: accountUserId, role: accountRole, ready: accountReady } = useWorkflowAccount();
+  const role = accountRole;
 
   const [sub, setSub] = useState<Submission | null>(null);
   const [sender, setSender] = useState<SenderProfile | null>(null);
@@ -264,31 +267,20 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
   const [routePlanIds, setRoutePlanIds] = useState<string[]>([]);
   const [routeStatus, setRouteStatus] = useState<string | null>(null);
   const [routeStateError, setRouteStateError] = useState(false);
-  const [role, setRole] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(false);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
   const fetchDetails = useCallback(async () => {
+    if (!accountReady) return;
     setLoadError('');
     setRevisionHistoryLoading(true);
     setRevisionHistoryError(null);
     // Clear errors from an earlier load; anything still wrong is reported again below.
     setActionError('');
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!user) throw new Error('An active account is required to view this submission.');
+      if (!accountUserId) throw new Error('An active account is required to view this submission.');
       if (typeof id !== 'string') throw new Error('Could not determine which submission to load.');
-      const [profileResult, detail] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single(),
-        loadWorkflowSubmissionDetail(supabase, id),
-      ]);
-      if (profileResult.error) throw profileResult.error;
-      setRole(profileResult.data.role);
+      const detail = await loadWorkflowSubmissionDetail(supabase, id);
 
       setSub(detail.submission);
       setSender(detail.sender);
@@ -312,7 +304,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       setLoading(false);
       setRevisionHistoryLoading(false);
     }
-  }, [id, supabase]);
+  }, [accountReady, accountUserId, id, supabase]);
 
   useEffect(() => { fetchDetails(); }, [fetchDetails]);
 
@@ -491,9 +483,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
         if (closureFile.size > 10 * 1024 * 1024) {
           throw new Error('The completion document must be 10 MB or smaller.');
         }
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) throw userError ?? new Error('You must sign in to complete this submission.');
-        userId = user.id;
+        if (!accountUserId) throw new Error('You must sign in to complete this submission.');
+        userId = accountUserId;
         fileType = getWorkflowFileMimeType(closureFile.name);
         if (!fileType) throw new Error('The completion document type is not supported.');
         filePath = `${userId}/${crypto.randomUUID()}-closure-${closureFile.name.replace(/[^\w.-]/g, '_')}`;
@@ -726,7 +717,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     for (const officeRole of Object.keys(OFFICE_CONFIG)
       .filter(isOfficeRole)
       .filter((office) => office !== role && office !== responsibleOfficeRole)) {
-      const targetAssignment = pendingAssignments.find((step) => step.office_role === officeRole);
+      const targetAssignment = pendingAssignments.find(
+        (step) => step.office_role === officeRole && step.status === 'pending'
+      );
       const forwardReason = routeStateError
         ? 'Could not verify the office assignment'
         : pendingAssignmentReason
@@ -761,8 +754,12 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           confirmation: `The pending assignment with ${OFFICE_CONFIG[officeRole].label} will be withdrawn.`,
           successMessage: `Assignment with ${OFFICE_CONFIG[officeRole].label} withdrawn.`,
           unavailableReason: targetAssignment
-            ? undefined
-            : `No pending assignment with ${OFFICE_CONFIG[officeRole].label}`,
+            ? routeStateError
+              ? 'Could not verify the office assignment'
+              : sub.status !== 'in_process'
+                ? 'Available only while the submission is In Process'
+                : undefined
+            : `No unreceived pending assignment with ${OFFICE_CONFIG[officeRole].label}`,
         },
       ];
     }

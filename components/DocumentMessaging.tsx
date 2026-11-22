@@ -3,6 +3,7 @@ import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 import { downloadFile } from '@/components/FilePreview';
 import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import {
@@ -295,7 +296,7 @@ export default function DocumentMessaging({
   workflowComposer,
 }: DocumentMessagingProps) {
   const supabase = useMemo(() => createClient(), []);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userId, ready: accountReady } = useWorkflowAccount();
   const [messages, setMessages] = useState<Message[]>([]);
   const [sharedAttachments, setSharedAttachments] = useState<SharedMessageAttachment[]>([]);
   const [selectedThreadStepId, setSelectedThreadStepId] = useState<string | null>(defaultAssignmentStepId);
@@ -587,13 +588,12 @@ export default function DocumentMessaging({
   }, [refreshMessageMetadata]);
 
   useEffect(() => {
+    if (!accountReady) return;
     let active = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const initialize = async () => {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) throw new Error(`Could not verify your session: ${authError.message}`);
-      if (!user) throw new Error('Sign in to view this conversation.');
+      if (!userId) throw new Error('Sign in to view this conversation.');
       if (!active) return;
 
       setLiveStatus('connecting');
@@ -602,8 +602,7 @@ export default function DocumentMessaging({
       setHasEarlier(false);
       setError('');
       setNotice('');
-      setUserId(user.id);
-      const page = await fetchPage(user.id);
+      const page = await fetchPage(userId);
       if (!active) return;
       setMessages(page);
       setHasEarlier(page.length === PAGE_SIZE);
@@ -612,7 +611,7 @@ export default function DocumentMessaging({
       if (!active) return;
 
       channel = supabase
-        .channel(`document-messages-${submissionId}-${selectedThreadStepId ?? 'submitter'}-${user.id}`)
+        .channel(`document-messages-${submissionId}-${selectedThreadStepId ?? 'submitter'}-${userId}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -675,7 +674,7 @@ export default function DocumentMessaging({
       active = false;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [fetchPage, refreshLatest, refreshSharedAttachments, refreshVisibleMetadata, selectedThreadStepId, submissionId, supabase]);
+  }, [accountReady, fetchPage, refreshLatest, refreshSharedAttachments, refreshVisibleMetadata, selectedThreadStepId, submissionId, supabase, userId]);
 
   const loadEarlierMessages = async () => {
     const oldestMessage = messages[0];

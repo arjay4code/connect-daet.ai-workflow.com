@@ -2,8 +2,9 @@
 'use client';
 import { logClientError } from '@/lib/clientLogger';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 export interface Submission {
   id: string;
@@ -35,28 +36,38 @@ export function useSubmissions(statusFilter?: string) {
   const supabase = useMemo(() => createClient(), []);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchInFlightRef = useRef(false);
 
   const fetchSubmissions = useCallback(async () => {
-    let query = supabase
-      .from('workflow_submissions')
-      .select(`
+    if (fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
+    try {
+      let query = supabase
+        .from('workflow_submissions')
+        .select(`
         *,
         profiles!user_id(email)
       `)
-      .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
-    if (statusFilter) {
-      query = query.eq('status', statusFilter);
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Submission list refresh failed:', error.message);
+        return;
+      }
+
+      setSubmissions(data ?? []);
+    } catch (error) {
+      console.error('Submission list refresh failed:', error);
+    } finally {
+      fetchInFlightRef.current = false;
+      setLoading(false);
     }
-
-    const { data, error } = await query;
-
-    console.log('statusFilter:', statusFilter);
-    console.log('data:', data);
-    console.log('error:', error);
-
-    setSubmissions(data ?? []);
-    setLoading(false);
   }, [statusFilter, supabase]);
 
   // ✅ Admin: Final Approve
@@ -106,7 +117,7 @@ export function useSubmissions(statusFilter?: string) {
         event: '*',
         schema: 'public',
         table: 'workflow_submissions',
-      }, fetchSubmissions)
+      }, () => void fetchSubmissions())
       .subscribe();
 
     return () => {
@@ -114,6 +125,7 @@ export function useSubmissions(statusFilter?: string) {
       supabase.removeChannel(channel);
     };
   }, [fetchSubmissions, supabase]);
+  useWorkflowPolling(fetchSubmissions);
 
   return { submissions, loading, adminApprove, adminDecline, refreshSubmissions: fetchSubmissions };
 }

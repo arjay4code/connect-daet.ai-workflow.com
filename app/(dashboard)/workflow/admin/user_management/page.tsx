@@ -354,6 +354,7 @@ export default function UserManagementPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [supabase, fetchUsers]);
+  useWorkflowPolling(fetchUsers);
 
   // ─── Filtering ─────────────────────────────────────────────────────────────
   const roleCounts = useMemo(() => {

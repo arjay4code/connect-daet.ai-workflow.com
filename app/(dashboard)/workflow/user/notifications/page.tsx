@@ -116,11 +116,12 @@ export default function NotificationsPage() {
   const fetchNotifications = useCallback(async (
     startAfter: NotificationCursor | null,
     append = false,
-    updateCursor = true
+    updateCursor = true,
+    background = false
   ) => {
     if (fetchInFlight.current) return;
     fetchInFlight.current = true;
-    setLoading(true);
+    if (!background) setLoading(true);
     setErrorMessage(null);
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -183,12 +184,13 @@ export default function NotificationsPage() {
       logClientError('Failed to load requestee notifications:', message);
       setErrorMessage(message);
       if (!append) setNotifications([]);
-      setHasMore(false);
+      if (!background) setHasMore(false);
     } finally {
       fetchInFlight.current = false;
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [supabase]);
+  useWorkflowPolling(() => fetchNotifications(null, true, false, true));
 
   const deleteNotification = async (notificationId: string) => {
     if (actionBusy || !window.confirm('Delete this notification permanently? The submission and workflow history will not be deleted.')) return;
@@ -276,7 +278,7 @@ export default function NotificationsPage() {
           schema: 'public',
           table: 'workflow_notifications',
         },
-        () => void fetchNotifications(null, true, false)
+        () => void fetchNotifications(null, true, false, true)
       )
       .subscribe();
 

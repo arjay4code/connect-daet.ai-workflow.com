@@ -72,11 +72,21 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : 'Not recorded';
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallback;
+}
+
 export default function DocumentRetrievalPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { role, userId, fullName, ready } = useWorkflowAccount();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scanHandledRef = useRef(false);
   const autoLookupAttemptedRef = useRef(false);
+  const activeLookupValueRef = useRef('');
   const [officeRole, setOfficeRole] = useState<OfficeRole | null>(null);
   const [officerName, setOfficerName] = useState('');
   const [checkingAccess, setCheckingAccess] = useState(true);
@@ -85,11 +95,42 @@ export default function DocumentRetrievalPage() {
   const [manualCode, setManualCode] = useState('');
   const [details, setDetails] = useState<RetrievalDetails | null>(null);
   const [location, setLocation] = useState<StorageLocation>(EMPTY_LOCATION);
+  const [locationEditEnabled, setLocationEditEnabled] = useState(false);
+  const [canMoveStoredLocation, setCanMoveStoredLocation] = useState(false);
   const [identityVerified, setIdentityVerified] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const hasRecordedLocation = Boolean(
+    details?.department_section?.trim()
+    || details?.shelf?.trim()
+    || details?.folder_box?.trim()
+  );
+  const hasCompleteLocation = Boolean(
+    details?.department_section?.trim()
+    && details?.shelf?.trim()
+    && details?.folder_box?.trim()
+  );
+  const hasCompleteLocationInput = [
+    location.department_section,
+    location.shelf,
+    location.folder_box,
+  ].every((value) => value.trim());
+  const locationNeedsSaving = Boolean(
+    locationEditEnabled
+    || location.department_section.trim() !== (details?.department_section || '').trim()
+    || location.shelf.trim() !== (details?.shelf || '').trim()
+    || location.folder_box.trim() !== (details?.folder_box || '').trim()
+  );
+  const storageLocationLocked = canMoveStoredLocation && !locationEditEnabled;
+  const identityVerificationDisabled = !details
+    || Boolean(details.released_at)
+    || releasing
+    || savingLocation
+    || !hasCompleteLocation
+    || locationNeedsSaving
+    || (canMoveStoredLocation && !locationEditEnabled);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -140,9 +181,7 @@ export default function DocumentRetrievalPage() {
       if (active) setCheckingAccess(false);
     };
 
-    void checkOfficerAccess();
     return () => {
-      active = false;
       const scanner = scannerRef.current;
       if (scanner?.isScanning) {
         void scanner.stop().catch((error: unknown) => {
@@ -150,21 +189,36 @@ export default function DocumentRetrievalPage() {
         });
       }
     };
-  }, [supabase]);
+  }, [fullName, ready, role, userId]);
 
-  const lookupRetrieval = useCallback(async (value: string) => {
+  const lookupRetrieval = useCallback(async (value: string, background = false) => {
     const token = parseRetrievalToken(value);
-    if (!token) {
-      setErrorMessage('This does not look like a valid Docuflow retrieval QR code.');
+    const lookupValue = value.trim();
+    const looksLikeQr = /^DAET-RETRIEVAL:/i.test(lookupValue) || /^https?:\/\//i.test(lookupValue);
+    if (!token && looksLikeQr) {
+      setErrorMessage('This does not look like a valid retrieval QR code.');
+      return;
+    }
+    if (!token && !lookupValue) {
+      setErrorMessage('Enter the tracking number or scan the requester’s retrieval QR code.');
       return;
     }
 
-    setErrorMessage('');
-    setMessage('');
-    setDetails(null);
-    const { data, error } = await supabase.rpc('get_workflow_retrieval_by_token', {
-      scanned_token: token,
-    });
+    if (!background) {
+      activeLookupValueRef.current = '';
+      setErrorMessage('');
+      setMessage('');
+      setDetails(null);
+      setLocationEditEnabled(false);
+      setCanMoveStoredLocation(false);
+    }
+    const { data, error } = token
+      ? await supabase.rpc('get_workflow_retrieval_by_token', {
+          scanned_token: token,
+        })
+      : await supabase.rpc('get_workflow_retrieval_by_tracking_number', {
+          search_tracking_number: lookupValue,
+        });
     if (error) {
       logClientError('Retrieval QR lookup failed:', error.message);
       setErrorMessage(error.message || 'Could not retrieve this request. Verify the QR code and office assignment.');
@@ -173,27 +227,43 @@ export default function DocumentRetrievalPage() {
 
     const record = Array.isArray(data) ? data[0] : data;
     if (!record) {
-      setErrorMessage('No request was returned for this QR code.');
+      setErrorMessage('No request was returned. Verify the tracking number and office assignment.');
       return;
     }
 
     const retrieval: RetrievalDetails = record;
     setDetails(retrieval);
-    setLocation({
-      department_section: retrieval.department_section || '',
-      room: '',
-      cabinet: '',
-      shelf: retrieval.shelf || '',
-      drawer: '',
-      folder_box: retrieval.folder_box || '',
-    });
-    setIdentityVerified(false);
-  }, [supabase]);
+    if (!background) {
+      setCanMoveStoredLocation(Boolean(
+        retrieval.department_section?.trim()
+        || retrieval.shelf?.trim()
+        || retrieval.folder_box?.trim()
+      ));
+    }
+    if (!background || !locationEditEnabled) {
+      setLocation({
+        department_section: retrieval.department_section || '',
+        room: '',
+        cabinet: '',
+        shelf: retrieval.shelf || '',
+        drawer: '',
+        folder_box: '',
+      });
+    }
+    if (!background) {
+      setIdentityVerified(false);
+      setLocationEditEnabled(false);
+    }
+    activeLookupValueRef.current = value.trim();
+    setErrorMessage('');
+  }, [locationEditEnabled, supabase]);
 
   useWorkflowAutoRefresh(
     supabase,
     () => {
-      if (manualCode.trim()) void lookupRetrieval(manualCode);
+      if (activeLookupValueRef.current) {
+        void lookupRetrieval(activeLookupValueRef.current, true);
+      }
     },
   );
 
@@ -206,7 +276,6 @@ export default function DocumentRetrievalPage() {
 
     autoLookupAttemptedRef.current = true;
     window.history.replaceState(null, '', url.pathname);
-    setManualCode(token);
     void lookupRetrieval(token);
   }, [officeRole, lookupRetrieval]);
 
@@ -251,6 +320,11 @@ export default function DocumentRetrievalPage() {
 
   const saveLocation = async () => {
     if (!details) return;
+    if (storageLocationLocked) return;
+    if ([location.department_section, location.shelf, location.folder_box].some((value) => !value.trim())) {
+      setErrorMessage('Enter the department / room, shelf, and folder / box before saving the storage location.');
+      return;
+    }
     setSavingLocation(true);
     setErrorMessage('');
     setMessage('');
@@ -284,7 +358,20 @@ export default function DocumentRetrievalPage() {
   };
 
   const confirmRelease = async () => {
-    if (!details || !identityVerified) return;
+    if (!details) return;
+    if (details.released_at) {
+      setErrorMessage('This document has already been handed over.');
+      return;
+    }
+    if (canMoveStoredLocation && !locationEditEnabled) {
+      setErrorMessage('Check “Move the document to a new storage location” before verifying identity and recording handover.');
+      return;
+    }
+    if (!hasCompleteLocation || locationNeedsSaving) {
+      setErrorMessage('Enter and save all three storage location fields before recording handover.');
+      return;
+    }
+    if (!identityVerified) return;
     setReleasing(true);
     setErrorMessage('');
     setMessage('');
@@ -301,13 +388,14 @@ export default function DocumentRetrievalPage() {
       setDetails((current) => current ? {
         ...current,
         processing_status: 'Released copy',
-        retrieval_status: 'active',
+        retrieval_status: 'released',
         released_at: release.released_at,
         releasing_officer_name: release.releasing_officer_name || officerName,
         latest_update: release.released_at,
       } : current);
-      setMessage('Document handover recorded. The requester has been notified.');
+      setMessage('Document handover recorded and ready for claim.');
       setIdentityVerified(false);
+      setLocationEditEnabled(false);
     } catch (error) {
       logClientError('Document release confirmation failed:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Could not record this document release.');
@@ -386,13 +474,13 @@ export default function DocumentRetrievalPage() {
                 }}
               >
                 <label htmlFor="manual-retrieval-code" className="block text-xs font-semibold text-warm-text">
-                  Enter QR code text
+                  Enter the tracking number
                 </label>
                 <input
                   id="manual-retrieval-code"
                   value={manualCode}
                   onChange={(event) => setManualCode(event.target.value)}
-                  placeholder="Paste a QR link or token"
+                  placeholder="Enter tracking number"
                   className="h-10 w-full rounded-xl border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay"
                 />
                 <button
@@ -403,7 +491,7 @@ export default function DocumentRetrievalPage() {
                   <Icon name="search" size={14} /> Retrieve request
                 </button>
                 <p className="text-[10px] leading-relaxed text-muted-text">
-                  The QR code opens this retrieval page with a random identifier only. Request details are returned only to the assigned office.
+                  Request details are returned only to the assigned office. A retrieval record must be active for the tracking number.
                 </p>
               </form>
             </div>
@@ -483,9 +571,44 @@ export default function DocumentRetrievalPage() {
                   <Icon name={details.received_at ? 'check' : 'clock'} size={15} className="shrink-0" />
                   {details.received_at
                     ? `Physical copy stored ${formatDate(details.received_at)}`
-                    : 'Physical copy is not yet marked as stored'}
+                    : locationNeedsSaving && hasCompleteLocationInput
+                      ? 'Location entered but not saved. Select Save to record it.'
+                      : locationNeedsSaving || hasRecordedLocation
+                        ? 'Complete all three storage location fields and save them.'
+                        : 'Physical storage location is not recorded'}
                 </div>
-                <fieldset className="space-y-3">
+                {canMoveStoredLocation && (
+                  <label className="flex items-start gap-2 text-[11px] leading-relaxed text-warm-text">
+                    <input
+                      type="checkbox"
+                      checked={locationEditEnabled}
+                      disabled={savingLocation}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        setLocationEditEnabled(enabled);
+                        setIdentityVerified(false);
+                        setLocation(enabled ? EMPTY_LOCATION : {
+                          department_section: details.department_section || '',
+                          room: '',
+                          cabinet: '',
+                          shelf: details.shelf || '',
+                          drawer: '',
+                          folder_box: details.folder_box || '',
+                        });
+                        setErrorMessage('');
+                        setMessage('');
+                      }}
+                      className="mt-0.5 accent-[#df7958] disabled:opacity-50"
+                    />
+                    Move the document to a new storage location
+                  </label>
+                )}
+                {canMoveStoredLocation && locationEditEnabled && (
+                  <p className="text-[10px] leading-relaxed text-muted-text">
+                    Enter all three fields for the new storage location before saving.
+                  </p>
+                )}
+                <fieldset className="space-y-3" disabled={storageLocationLocked || savingLocation}>
                   {([
                     ['department_section', 'Department / Room'],
                     ['shelf', 'Shelf'],
@@ -495,9 +618,12 @@ export default function DocumentRetrievalPage() {
                       {label}
                       <input
                         value={location[field]}
-                        onChange={(event) => setLocation((current) => ({ ...current, [field]: event.target.value }))}
+                        onChange={(event) => {
+                          setLocation((current) => ({ ...current, [field]: event.target.value }));
+                          setIdentityVerified(false);
+                        }}
                         maxLength={200}
-                        className="mt-1 h-9 w-full rounded-lg border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay"
+                        className="mt-1 h-9 w-full rounded-lg border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay disabled:cursor-not-allowed disabled:bg-sidebar disabled:text-muted-text"
                       />
                     </label>
                   ))}
@@ -517,8 +643,9 @@ export default function DocumentRetrievalPage() {
                       <input
                         type="checkbox"
                         checked={identityVerified}
+                        disabled={identityVerificationDisabled}
                         onChange={(event) => setIdentityVerified(event.target.checked)}
-                        className="mt-0.5 accent-[#df7958]"
+                        className="mt-0.5 accent-[#df7958] disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       I verified the requester’s identity and authorization in person.
                     </label>

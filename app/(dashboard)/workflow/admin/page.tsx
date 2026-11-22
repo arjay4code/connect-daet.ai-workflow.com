@@ -130,8 +130,8 @@ export default function AdminDashboard() {
   const [fileSort, setFileSort] = useState<FileBrowserSort>('newest');
   const [filePage, setFilePage] = useState(1);
 
-  const fetchMonitoringData = useCallback(async () => {
-    setLoading(true);
+  const fetchMonitoringData = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     setLoadError('');
     try {
       const [nextProfiles, nextSubmissions] = await Promise.all([
@@ -153,11 +153,11 @@ export default function AdminDashboard() {
     void fetchMonitoringData();
     const profilesChannel = supabase
       .channel('admin-monitoring-profiles')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchMonitoringData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => void fetchMonitoringData(true))
       .subscribe();
     const submissionsChannel = supabase
       .channel('admin-monitoring-submissions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'workflow_submissions' }, fetchMonitoringData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workflow_submissions' }, () => void fetchMonitoringData(true))
       .subscribe();
 
     return () => {
@@ -165,6 +165,7 @@ export default function AdminDashboard() {
       void supabase.removeChannel(submissionsChannel);
     };
   }, [fetchMonitoringData, supabase]);
+  useWorkflowPolling(() => fetchMonitoringData(true));
 
   const profilesById = useMemo(
     () => new Map(profiles.map((profile) => [profile.id, profile])),

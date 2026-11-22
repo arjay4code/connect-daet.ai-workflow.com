@@ -54,8 +54,8 @@ export default function WorkflowArchive({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const refreshArchive = useCallback(async () => {
-    setLoading(true);
+  const refreshArchive = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     setError('');
     const officeRole = isOfficeRole(role) ? role : null;
     const { data, error: archiveError } = await supabase.rpc('get_workflow_archive', {
@@ -69,12 +69,13 @@ export default function WorkflowArchive({
     } else {
       setRecords((data ?? []) as ArchiveRecord[]);
     }
-    setLoading(false);
+    if (!background) setLoading(false);
   }, [role, supabase]);
 
   useEffect(() => {
     void refreshArchive();
   }, [refreshArchive]);
+  useWorkflowPolling(() => refreshArchive(true));
 
   const filteredRecords = useMemo(() => {
     const query = search.trim().toLowerCase();

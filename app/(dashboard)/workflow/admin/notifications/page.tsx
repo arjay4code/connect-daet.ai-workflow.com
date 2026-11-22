@@ -80,8 +80,8 @@ export default function AdminNotificationsPage() {
   const [actionBusy, setActionBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchNotifications = useCallback(async (targetPage = page) => {
-    setLoading(true);
+  const fetchNotifications = useCallback(async (targetPage = page, background = false) => {
+    if (!background) setLoading(true);
     setErrorMessage(null);
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -139,12 +139,15 @@ export default function AdminNotificationsPage() {
       const message = error instanceof Error ? error.message : 'Could not load notifications.';
       logClientError('Failed to load admin notifications:', message);
       setErrorMessage(message);
-      setNotifications([]);
-      setHasNextPage(false);
+      if (!background) {
+        setNotifications([]);
+        setHasNextPage(false);
+      }
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [filter, page, supabase]);
+  useWorkflowPolling(() => fetchNotifications(page, true));
 
   const markAllAsRead = async () => {
     setActionBusy(true);
@@ -231,7 +234,7 @@ export default function AdminNotificationsPage() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'workflow_notifications' },
-        () => fetchNotifications()
+        () => void fetchNotifications(page, true)
       )
       .subscribe();
 

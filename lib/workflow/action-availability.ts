@@ -75,9 +75,7 @@ export function getAvailableActions(
 
   if (actor === 'responsible_office') {
     if (status === 'submitted' || status === 'pending_office') return ['receive'];
-    if (status !== 'in_process' || hasActiveAssignment) {
-      return status === 'in_process' ? ['return_to_submitter'] : [];
-    }
+    if (status !== 'in_process' || hasActiveAssignment) return [];
 
     const actions: WorkflowAction[] = [
       'return_to_submitter',

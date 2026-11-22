@@ -1,10 +1,11 @@
 'use client';
 import { logClientError } from '@/lib/clientLogger';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   getOfficeFileManagementPath,
   getOfficeNotificationsPath,
@@ -30,12 +31,19 @@ export default function WorkflowLayout({
   const [role, setRole] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
+  const [authSession, setAuthSession] = useState<Session | null | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false); 
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const endActivitySession = useWorkflowActivityPresence(supabase);
+  const accountRequestRef = useRef<Promise<{
+    session: Session | null;
+    profile: { role: string; full_name: string | null } | null;
+    profileError: { message: string } | null;
+  }> | null>(null);
+  const endActivitySession = useWorkflowActivityPresence(supabase, authSession);
 
   const refreshHasUnread = useCallback(async () => {
     const { data, error } = await supabase.rpc('has_unread_workflow_notifications');
@@ -48,22 +56,54 @@ export default function WorkflowLayout({
 
   // 1. Initial User & Role Fetch
   useEffect(() => {
-    const getUserInfo = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-        setUserEmail(user.email || null);
-        const { data: profile } = await supabase
+    let active = true;
+    if (!accountRequestRef.current) {
+      accountRequestRef.current = (async () => {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!session) return { session: null, profile: null, profileError: null };
+
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('role')
-          .eq('id', user.id)
+          .select('role, full_name')
+          .eq('id', session.user.id)
           .single();
-        
-        setRole(profile?.role || 'submitter');
-        await refreshHasUnread();
+
+        return { session, profile, profileError };
+      })();
+    }
+
+    void accountRequestRef.current.then(({ session, profile, profileError }) => {
+      if (!active) return;
+      setAccountReady(true);
+      setAuthSession(session);
+      setUserId(session?.user.id ?? null);
+      setUserEmail(session?.user.email || null);
+      setUserFullName(profile?.full_name ?? null);
+      if (profileError) {
+        console.error('Could not load the signed-in workflow profile:', profileError.message);
       }
+      setRole(session ? (profileError ? null : profile?.role || 'submitter') : null);
+      if (session && !profileError) {
+        void refreshHasUnread();
+      }
+    }).catch((error: unknown) => {
+      if (!active) return;
+      console.error(
+        'Could not load the signed-in workflow account:',
+        error instanceof Error ? error.message : error,
+      );
+      setUserId(null);
+      setUserEmail(null);
+      setUserFullName(null);
+      setRole(null);
+      setAuthSession(null);
+      setAccountReady(true);
+    });
+
+    return () => {
+      active = false;
     };
-    getUserInfo();
   }, [refreshHasUnread, supabase]);
 
   // 2. Realtime Subscription Effect (Fixed to prevent "subscribe()" errors)
@@ -92,20 +132,6 @@ export default function WorkflowLayout({
       window.removeEventListener('workflow-notifications-changed', handleNotificationChange);
     };
   }, [supabase, userId, refreshHasUnread]);
-
-  useEffect(() => {
-    const refreshDashboard = () => {
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-    const pollingTimer = window.setInterval(refreshDashboard, 30000);
-    document.addEventListener('visibilitychange', refreshDashboard);
-    window.addEventListener('focus', refreshDashboard);
-    return () => {
-      window.clearInterval(pollingTimer);
-      document.removeEventListener('visibilitychange', refreshDashboard);
-      window.removeEventListener('focus', refreshDashboard);
-    };
-  }, [router]);
 
   const handleLogout = async () => {
     await endActivitySession();
@@ -147,7 +173,12 @@ export default function WorkflowLayout({
   const isActive = (path: string) => pathname === path;
 
   return (
-    <WorkflowRoleProvider role={role}>
+    <WorkflowRoleProvider
+      role={role}
+      userId={userId}
+      fullName={userFullName}
+      ready={accountReady}
+    >
     <div className="workflow-system min-h-screen bg-cream text-warm-text">
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
