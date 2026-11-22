@@ -30,6 +30,7 @@ import {
   type OfficeRole,
 } from '@/lib/workflow/offices';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 
 const fonts = {
   serif: 'font-serif',
@@ -163,6 +164,7 @@ export default function UserFileDetail() {
   const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(false);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
+  const { userId: accountUserId } = useWorkflowAccount();
 
   const fetchSubmission = useCallback(async (preserveCurrent = false) => {
     if (!preserveCurrent) {
@@ -463,9 +465,7 @@ export default function UserFileDetail() {
     const uploadedPaths: string[] = [];
     setSubmittingRevision(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!authData.user || authData.user.id !== sub.user_id) {
+      if (!accountUserId || accountUserId !== sub.user_id) {
         throw new Error('Your active submitter account could not be verified.');
       }
 
@@ -481,7 +481,7 @@ export default function UserFileDetail() {
         const fileType = getWorkflowFileMimeType(file.name);
         if (!fileType) throw new Error(`Unsupported file type: ${file.name}`);
         const safeName = file.name.replace(/[^\w.-]/g, '_');
-        const filePath = `${authData.user.id}/${crypto.randomUUID()}-${index}-${safeName}`;
+        const filePath = `${accountUserId}/${crypto.randomUUID()}-${index}-${safeName}`;
         const { error } = await supabase.storage
           .from('workflow_uploads')
           .upload(filePath, file, {

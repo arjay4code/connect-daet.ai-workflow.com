@@ -8,6 +8,7 @@ import WorkflowNotificationFeed from '@/components/WorkflowNotificationFeed';
 import SwipeDismissNotification from '@/components/SwipeDismissNotification';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import { getOfficeFileManagementPath, type OfficeRole } from '@/lib/workflow/offices';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 // ─── Styles & Fonts (synced with the dashboards) ─────────────────────────────
 const fonts = {
@@ -106,11 +107,12 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
   const fetchNotifications = useCallback(async (
     startAfter: NotificationCursor | null,
     append = false,
-    updateCursor = true
+    updateCursor = true,
+    background = false
   ) => {
     if (fetchInFlight.current) return;
     fetchInFlight.current = true;
-    setLoading(true);
+    if (!background) setLoading(true);
     setErrorMessage(null);
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -170,12 +172,13 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
       console.error('Failed to load approver notifications:', message);
       setErrorMessage(message);
       if (!append) setNotifications([]);
-      setHasMore(false);
+      if (!background) setHasMore(false);
     } finally {
       fetchInFlight.current = false;
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [supabase]);
+  useWorkflowPolling(() => fetchNotifications(null, true, false, true));
 
   const deleteNotification = async (notificationId: string) => {
     if (actionBusy || !window.confirm('Delete this notification permanently? The submission and workflow history will not be deleted.')) return;
@@ -273,7 +276,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
             table: 'workflow_notifications',
             filter: `recipient_id=eq.${data.user.id}`,
           },
-          () => void fetchNotifications(null, true, false)
+          () => void fetchNotifications(null, true, false, true)
         )
         .on(
           'postgres_changes',
@@ -282,7 +285,7 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
             schema: 'public',
             table: 'workflow_submissions',
           },
-          () => void fetchNotifications(null, true, false)
+          () => void fetchNotifications(null, true, false, true)
         )
         .subscribe((status, subscribeError) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {

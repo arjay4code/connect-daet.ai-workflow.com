@@ -5,6 +5,7 @@ import type { Html5Qrcode } from 'html5-qrcode';
 import { createClient } from '@/lib/supabase/client';
 import { isOfficeRole, OFFICE_CONFIG, type OfficeRole } from '@/lib/workflow/offices';
 import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 
 interface RetrievalDetails {
   submission_id: string;
@@ -69,11 +70,21 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : 'Not recorded';
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallback;
+}
+
 export default function DocumentRetrievalPage() {
   const supabase = useMemo(() => createClient(), []);
+  const { role, userId, fullName, ready } = useWorkflowAccount();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scanHandledRef = useRef(false);
   const autoLookupAttemptedRef = useRef(false);
+  const activeLookupValueRef = useRef('');
   const [officeRole, setOfficeRole] = useState<OfficeRole | null>(null);
   const [officerName, setOfficerName] = useState('');
   const [checkingAccess, setCheckingAccess] = useState(true);
@@ -82,11 +93,42 @@ export default function DocumentRetrievalPage() {
   const [manualCode, setManualCode] = useState('');
   const [details, setDetails] = useState<RetrievalDetails | null>(null);
   const [location, setLocation] = useState<StorageLocation>(EMPTY_LOCATION);
+  const [locationEditEnabled, setLocationEditEnabled] = useState(false);
+  const [canMoveStoredLocation, setCanMoveStoredLocation] = useState(false);
   const [identityVerified, setIdentityVerified] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const hasRecordedLocation = Boolean(
+    details?.department_section?.trim()
+    || details?.shelf?.trim()
+    || details?.folder_box?.trim()
+  );
+  const hasCompleteLocation = Boolean(
+    details?.department_section?.trim()
+    && details?.shelf?.trim()
+    && details?.folder_box?.trim()
+  );
+  const hasCompleteLocationInput = [
+    location.department_section,
+    location.shelf,
+    location.folder_box,
+  ].every((value) => value.trim());
+  const locationNeedsSaving = Boolean(
+    locationEditEnabled
+    || location.department_section.trim() !== (details?.department_section || '').trim()
+    || location.shelf.trim() !== (details?.shelf || '').trim()
+    || location.folder_box.trim() !== (details?.folder_box || '').trim()
+  );
+  const storageLocationLocked = canMoveStoredLocation && !locationEditEnabled;
+  const identityVerificationDisabled = !details
+    || Boolean(details.released_at)
+    || releasing
+    || savingLocation
+    || !hasCompleteLocation
+    || locationNeedsSaving
+    || (canMoveStoredLocation && !locationEditEnabled);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -102,44 +144,20 @@ export default function DocumentRetrievalPage() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    const checkOfficerAccess = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('Retrieval officer authentication failed:', userError.message);
-        if (active) setErrorMessage('Could not verify your account. Please sign in again.');
-        if (active) setCheckingAccess(false);
-        return;
-      }
-      if (!user) {
-        if (active) setErrorMessage('Sign in with an authorized municipal officer account to use document retrieval.');
-        if (active) setCheckingAccess(false);
-        return;
-      }
+    if (!ready) return;
+    setOfficeRole(null);
+    if (!userId) {
+      setErrorMessage('Sign in with an authorized municipal officer account to use document retrieval.');
+    } else if (isOfficeRole(role)) {
+      setOfficeRole(role);
+      setOfficerName(fullName || '');
+      setErrorMessage('');
+    } else {
+      setErrorMessage('This feature is only available to authorized municipal office staff.');
+    }
+    setCheckingAccess(false);
 
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', user.id)
-        .single();
-      if (profileError) {
-        console.error('Retrieval officer profile load failed:', profileError.message);
-        if (active) setErrorMessage('Could not verify your municipal office role.');
-      } else if (isOfficeRole(profile?.role ?? null)) {
-        if (active) {
-          setOfficeRole(profile.role);
-          setOfficerName(profile.full_name || '');
-          setErrorMessage('');
-        }
-      } else if (active) {
-        setErrorMessage('This feature is only available to authorized municipal office staff.');
-      }
-      if (active) setCheckingAccess(false);
-    };
-
-    void checkOfficerAccess();
     return () => {
-      active = false;
       const scanner = scannerRef.current;
       if (scanner?.isScanning) {
         void scanner.stop().catch((error: unknown) => {
@@ -147,50 +165,88 @@ export default function DocumentRetrievalPage() {
         });
       }
     };
-  }, [supabase]);
+  }, [fullName, ready, role, userId]);
 
-  const lookupRetrieval = useCallback(async (value: string) => {
+  const lookupRetrieval = useCallback(async (value: string, background = false) => {
     const token = parseRetrievalToken(value);
-    if (!token) {
-      setErrorMessage('This does not look like a valid Docuflow retrieval QR code.');
+    const lookupValue = value.trim();
+    const looksLikeQr = /^DAET-RETRIEVAL:/i.test(lookupValue) || /^https?:\/\//i.test(lookupValue);
+    if (!token && looksLikeQr) {
+      setErrorMessage('This does not look like a valid retrieval QR code.');
+      return;
+    }
+    if (!token && !lookupValue) {
+      setErrorMessage('Enter the tracking number or scan the requester’s retrieval QR code.');
       return;
     }
 
-    setErrorMessage('');
-    setMessage('');
-    setDetails(null);
-    const { data, error } = await supabase.rpc('get_workflow_retrieval_by_token', {
-      scanned_token: token,
-    });
+    if (!background) {
+      activeLookupValueRef.current = '';
+      setErrorMessage('');
+      setMessage('');
+      setDetails(null);
+      setLocationEditEnabled(false);
+      setCanMoveStoredLocation(false);
+    }
+    const { data, error } = token
+      ? await supabase.rpc('get_workflow_retrieval_by_token', {
+          scanned_token: token,
+        })
+      : await supabase.rpc('get_workflow_retrieval_by_tracking_number', {
+          search_tracking_number: lookupValue,
+        });
     if (error) {
-      console.error('Retrieval QR lookup failed:', error.message);
-      setErrorMessage(error.message || 'Could not retrieve this request. Verify the QR code and office assignment.');
+      const isAssignedToDifferentOffice = error.message.includes(
+        'No active retrieval record with this tracking number is assigned to your office'
+      );
+      if (!isAssignedToDifferentOffice) {
+        console.error('Document retrieval lookup failed:', error.message);
+      }
+      setErrorMessage(isAssignedToDifferentOffice
+        ? 'This retrieval is not assigned to your office. Check the tracking number or use a QR code'
+        : error.message || 'Could not retrieve this request. Verify the tracking number and office assignment.');
       return;
     }
 
     const record = Array.isArray(data) ? data[0] : data;
     if (!record) {
-      setErrorMessage('No request was returned for this QR code.');
+      setErrorMessage('No request was returned. Verify the tracking number and office assignment.');
       return;
     }
 
     const retrieval: RetrievalDetails = record;
     setDetails(retrieval);
-    setLocation({
-      department_section: retrieval.department_section || '',
-      room: '',
-      cabinet: '',
-      shelf: retrieval.shelf || '',
-      drawer: '',
-      folder_box: retrieval.folder_box || '',
-    });
-    setIdentityVerified(false);
-  }, [supabase]);
+    if (!background) {
+      setCanMoveStoredLocation(Boolean(
+        retrieval.department_section?.trim()
+        || retrieval.shelf?.trim()
+        || retrieval.folder_box?.trim()
+      ));
+    }
+    if (!background || !locationEditEnabled) {
+      setLocation({
+        department_section: retrieval.department_section || '',
+        room: '',
+        cabinet: '',
+        shelf: retrieval.shelf || '',
+        drawer: '',
+        folder_box: '',
+      });
+    }
+    if (!background) {
+      setIdentityVerified(false);
+      setLocationEditEnabled(false);
+    }
+    activeLookupValueRef.current = value.trim();
+    setErrorMessage('');
+  }, [locationEditEnabled, supabase]);
 
   useWorkflowAutoRefresh(
     supabase,
     () => {
-      if (manualCode.trim()) void lookupRetrieval(manualCode);
+      if (activeLookupValueRef.current) {
+        void lookupRetrieval(activeLookupValueRef.current, true);
+      }
     },
   );
 
@@ -203,7 +259,6 @@ export default function DocumentRetrievalPage() {
 
     autoLookupAttemptedRef.current = true;
     window.history.replaceState(null, '', url.pathname);
-    setManualCode(token);
     void lookupRetrieval(token);
   }, [officeRole, lookupRetrieval]);
 
@@ -248,6 +303,11 @@ export default function DocumentRetrievalPage() {
 
   const saveLocation = async () => {
     if (!details) return;
+    if (storageLocationLocked) return;
+    if ([location.department_section, location.shelf, location.folder_box].some((value) => !value.trim())) {
+      setErrorMessage('Enter the department / room, shelf, and folder / box before saving the storage location.');
+      return;
+    }
     setSavingLocation(true);
     setErrorMessage('');
     setMessage('');
@@ -273,15 +333,29 @@ export default function DocumentRetrievalPage() {
       } : current);
       setMessage('Physical storage location saved.');
     } catch (error) {
-      console.error('Physical document location update failed:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Could not save the storage location.');
+      const message = getErrorMessage(error, 'Could not save the storage location.');
+      console.warn('Physical document location update failed:', message);
+      setErrorMessage(message);
     } finally {
       setSavingLocation(false);
     }
   };
 
   const confirmRelease = async () => {
-    if (!details || !identityVerified) return;
+    if (!details) return;
+    if (details.released_at) {
+      setErrorMessage('This document has already been handed over.');
+      return;
+    }
+    if (canMoveStoredLocation && !locationEditEnabled) {
+      setErrorMessage('Check “Move the document to a new storage location” before verifying identity and recording handover.');
+      return;
+    }
+    if (!hasCompleteLocation || locationNeedsSaving) {
+      setErrorMessage('Enter and save all three storage location fields before recording handover.');
+      return;
+    }
+    if (!identityVerified) return;
     setReleasing(true);
     setErrorMessage('');
     setMessage('');
@@ -298,16 +372,18 @@ export default function DocumentRetrievalPage() {
       setDetails((current) => current ? {
         ...current,
         processing_status: 'Released copy',
-        retrieval_status: 'active',
+        retrieval_status: 'released',
         released_at: release.released_at,
         releasing_officer_name: release.releasing_officer_name || officerName,
         latest_update: release.released_at,
       } : current);
-      setMessage('Document handover recorded. The requester has been notified.');
+      setMessage('Document handover recorded and ready for claim.');
       setIdentityVerified(false);
+      setLocationEditEnabled(false);
     } catch (error) {
-      console.error('Document release confirmation failed:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Could not record this document release.');
+      const message = getErrorMessage(error, 'Could not record this document release.');
+      console.warn('Document release confirmation failed:', message);
+      setErrorMessage(message);
     } finally {
       setReleasing(false);
     }
@@ -330,10 +406,10 @@ export default function DocumentRetrievalPage() {
       <header>
         <p className="mb-2 text-[11px] font-medium text-muted-text">Authorized officer workspace</p>
         <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
-          Scan QR Code
+          Document Retrieval
         </h1>
         <p className="mt-2 text-xs text-muted-text">
-          Scan a requester’s retrieval code to locate and record handover of the physical document.
+          Scan a requester’s retrieval QR code or enter the tracking number to locate the request and record handover.
         </p>
       </header>
 
@@ -380,13 +456,13 @@ export default function DocumentRetrievalPage() {
                 }}
               >
                 <label htmlFor="manual-retrieval-code" className="block text-xs font-semibold text-warm-text">
-                  Enter QR code text
+                  Enter the tracking number
                 </label>
                 <input
                   id="manual-retrieval-code"
                   value={manualCode}
                   onChange={(event) => setManualCode(event.target.value)}
-                  placeholder="Paste a QR link or token"
+                  placeholder="Enter tracking number"
                   className="h-10 w-full rounded-xl border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay"
                 />
                 <button
@@ -397,7 +473,7 @@ export default function DocumentRetrievalPage() {
                   Retrieve request
                 </button>
                 <p className="text-[10px] leading-relaxed text-muted-text">
-                  The QR code opens this retrieval page with a random identifier only. Request details are returned only to the assigned office.
+                  Request details are returned only to the assigned office. A retrieval record must be active for the tracking number.
                 </p>
               </form>
             </div>
@@ -468,15 +544,50 @@ export default function DocumentRetrievalPage() {
               <section className="space-y-4 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
                 <h2 className="text-sm font-semibold text-warm-text">Storage and handover</h2>
                 <div className={`rounded-xl px-3 py-3 text-xs ${
-                  details.received_at
+                  hasCompleteLocation && !locationNeedsSaving
                     ? 'bg-approved-bg text-approved-text'
                     : 'bg-pending-bg text-pending-text'
                 }`}>
-                  {details.received_at
+                  {hasCompleteLocation && !locationNeedsSaving
                     ? `Physical copy stored ${formatDate(details.received_at)}`
-                    : 'Physical copy is not yet marked as stored'}
+                    : locationNeedsSaving && hasCompleteLocationInput
+                      ? 'Location entered but not saved. Select Save to record it.'
+                      : locationNeedsSaving || hasRecordedLocation
+                        ? 'Complete all three storage location fields and save them.'
+                        : 'Physical storage location is not recorded'}
                 </div>
-                <fieldset className="space-y-3">
+                {canMoveStoredLocation && (
+                  <label className="flex items-start gap-2 text-[11px] leading-relaxed text-warm-text">
+                    <input
+                      type="checkbox"
+                      checked={locationEditEnabled}
+                      disabled={savingLocation}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        setLocationEditEnabled(enabled);
+                        setIdentityVerified(false);
+                        setLocation(enabled ? EMPTY_LOCATION : {
+                          department_section: details.department_section || '',
+                          room: '',
+                          cabinet: '',
+                          shelf: details.shelf || '',
+                          drawer: '',
+                          folder_box: details.folder_box || '',
+                        });
+                        setErrorMessage('');
+                        setMessage('');
+                      }}
+                      className="mt-0.5 accent-[#df7958] disabled:opacity-50"
+                    />
+                    Move the document to a new storage location
+                  </label>
+                )}
+                {canMoveStoredLocation && locationEditEnabled && (
+                  <p className="text-[10px] leading-relaxed text-muted-text">
+                    Enter all three fields for the new storage location before saving.
+                  </p>
+                )}
+                <fieldset className="space-y-3" disabled={storageLocationLocked || savingLocation}>
                   {([
                     ['department_section', 'Department / Room'],
                     ['shelf', 'Shelf'],
@@ -486,19 +597,26 @@ export default function DocumentRetrievalPage() {
                       {label}
                       <input
                         value={location[field]}
-                        onChange={(event) => setLocation((current) => ({ ...current, [field]: event.target.value }))}
+                        onChange={(event) => {
+                          setLocation((current) => ({ ...current, [field]: event.target.value }));
+                          setIdentityVerified(false);
+                        }}
                         maxLength={200}
-                        className="mt-1 h-9 w-full rounded-lg border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay"
+                        className="mt-1 h-9 w-full rounded-lg border border-warm-border bg-white px-3 text-xs text-warm-text outline-none focus:border-clay disabled:cursor-not-allowed disabled:bg-sidebar disabled:text-muted-text"
                       />
                     </label>
                   ))}
                   <button
                     type="button"
                     onClick={() => void saveLocation()}
-                    disabled={savingLocation}
-                    className="h-10 w-full rounded-full border border-warm-border text-xs font-semibold text-warm-text disabled:opacity-50"
+                    disabled={savingLocation || storageLocationLocked}
+                    className="h-10 w-full rounded-full border border-warm-border text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {savingLocation ? 'Saving location...' : 'Save physical location'}
+                    {savingLocation
+                      ? 'Saving location...'
+                      : canMoveStoredLocation && locationEditEnabled
+                        ? 'Save new storage location'
+                        : 'Save physical location'}
                   </button>
                 </fieldset>
 
@@ -507,18 +625,23 @@ export default function DocumentRetrievalPage() {
                       <input
                         type="checkbox"
                         checked={identityVerified}
+                        disabled={identityVerificationDisabled}
                         onChange={(event) => setIdentityVerified(event.target.checked)}
-                        className="mt-0.5 accent-[#df7958]"
+                        className="mt-0.5 accent-[#df7958] disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       I verified the requester’s identity and authorization in person.
                     </label>
                     <button
                       type="button"
                       onClick={() => void confirmRelease()}
-                      disabled={!identityVerified || !details.received_at || releasing}
+                      disabled={!identityVerified || identityVerificationDisabled}
                       className="h-11 w-full rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {releasing ? 'Recording handover...' : 'Confirm copy handover'}
+                      {releasing
+                        ? 'Recording handover...'
+                        : details.released_at
+                          ? 'Handover already recorded'
+                          : 'Confirm copy handover'}
                     </button>
                   </div>
               </section>
