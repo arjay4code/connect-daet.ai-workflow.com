@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getWorkflowTiming } from '@/lib/workflow/timing';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 import {
   calculateWorkflowReportAverages,
   formatReportDuration,
@@ -93,7 +94,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReport = useCallback(async () => {
+  const fetchReport = useCallback(async (background = false) => {
     setError(null);
 
     const { data, error: queryError } = await supabase
@@ -103,7 +104,7 @@ export default function ReportsPage() {
 
     if (queryError) {
       setError(queryError.message);
-      setRows([]);
+      if (!background) setRows([]);
     } else {
       setRows((data || []).map((row) => ({
         ...row,
@@ -122,6 +123,7 @@ export default function ReportsPage() {
       active = false;
     };
   }, [fetchReport]);
+  useWorkflowPolling(() => fetchReport(true));
 
   const filteredRows = useMemo(() => rows.filter((row) => {
     const createdDate = row.created_at.slice(0, 10);

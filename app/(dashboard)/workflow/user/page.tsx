@@ -208,7 +208,6 @@ export default function WorkflowDashboard() {
       const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000, 'getSession');
       const user = session?.user ?? null;
       setUser(user);
-      setRewardBalance(null);
       if (!user) return;
 
       const { data, error } = await withTimeout(

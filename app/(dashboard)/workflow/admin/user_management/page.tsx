@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -350,6 +351,7 @@ export default function UserManagementPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [supabase, fetchUsers]);
+  useWorkflowPolling(fetchUsers);
 
   // ─── Filtering ─────────────────────────────────────────────────────────────
   const roleCounts = useMemo(() => {

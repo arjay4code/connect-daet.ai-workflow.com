@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import type { createClient } from '@/lib/supabase/client';
 
 type PresenceEvent = 'session_started' | 'activity' | 'heartbeat' | 'session_ended';
@@ -11,9 +12,13 @@ const HEARTBEAT_INTERVAL_MS = 60_000;
 const ACTIVITY_THROTTLE_MS = 60_000;
 const ACTIVITY_REQUEST_TIMEOUT_MS = 15_000;
 
-export function useWorkflowActivityPresence(supabase: ReturnType<typeof createClient>) {
+export function useWorkflowActivityPresence(
+  supabase: ReturnType<typeof createClient>,
+  session: Session | null | undefined,
+) {
   const sessionIdRef = useRef<string | null>(null);
   const sessionStorageKeyRef = useRef<string | null>(null);
+  const authSessionRef = useRef<Session | null>(null);
   const lastActivitySentAtRef = useRef(0);
   const lastErrorLoggedAtRef = useRef(0);
 
@@ -30,9 +35,8 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
     if (!sessionId) return;
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session?.access_token) return;
+      const currentSession = authSessionRef.current;
+      if (!currentSession?.access_token) return;
 
       const postEvent = (accessToken: string) => fetch('/api/workflow/activity', {
         method: 'POST',
@@ -44,10 +48,11 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
         signal: AbortSignal.timeout(ACTIVITY_REQUEST_TIMEOUT_MS),
       });
 
-      let response = await postEvent(session.access_token);
+      let response = await postEvent(currentSession.access_token);
       if (response.status === 401) {
         const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError) throw refreshError;
+        authSessionRef.current = refreshed.session;
         const refreshedToken = refreshed.session?.access_token;
         if (!refreshedToken) {
           logPresenceWarning(
@@ -81,10 +86,18 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
   }, [logPresenceWarning, supabase]);
 
   useEffect(() => {
+    authSessionRef.current = session ?? null;
+  }, [session]);
+
+  useEffect(() => {
+    if (session === undefined) return;
+
     let disposed = false;
     let heartbeatTimer: number | null = null;
-    let initializationRetryTimer: number | null = null;
     let listenersAttached = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authSessionRef.current = nextSession;
+    });
     const sendHeartbeat = () => {
       if (document.visibilityState === 'visible') void sendEvent('heartbeat');
     };
@@ -97,21 +110,6 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
     };
 
     const initializePresence = async () => {
-      let session;
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        session = data.session;
-      } catch (error) {
-        logPresenceWarning('Could not read the signed-in session for activity monitoring; initialization will retry:', error);
-        if (!disposed) {
-          initializationRetryTimer = window.setTimeout(() => {
-            initializationRetryTimer = null;
-            void initializePresence();
-          }, HEARTBEAT_INTERVAL_MS);
-        }
-        return;
-      }
       if (disposed || !session) return;
 
       const storageKey = `${SESSION_STORAGE_KEY}:${session.user.id}`;
@@ -146,7 +144,7 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
     return () => {
       disposed = true;
       if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
-      if (initializationRetryTimer !== null) window.clearTimeout(initializationRetryTimer);
+      subscription.unsubscribe();
       if (listenersAttached) {
         document.removeEventListener('visibilitychange', sendHeartbeat);
         document.removeEventListener('pointerdown', recordActivity);
@@ -155,7 +153,7 @@ export function useWorkflowActivityPresence(supabase: ReturnType<typeof createCl
         document.removeEventListener('scroll', recordActivity);
       }
     };
-  }, [logPresenceWarning, sendEvent, supabase]);
+  }, [logPresenceWarning, sendEvent, session, supabase]);
 
   return useCallback(async () => {
     await sendEvent('session_ended');
