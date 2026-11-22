@@ -3,20 +3,33 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { OFFICE_CONFIG, type OfficeRole } from '@/lib/workflow/offices';
+import { fetchWorkflowOfficeDocumentTypes } from '@/lib/workflow/document-types';
+
+type FinalDecisionOfficeRole = Exclude<OfficeRole, 'tourism_officer'>;
+
+const FINAL_DECISION_OFFICE_ROLES: readonly FinalDecisionOfficeRole[] = [
+  'municipal_treasurer',
+  'mayor_office',
+  'sangguniang_bayan',
+];
 
 interface Authority {
   id: string;
-  office_role: OfficeRole;
+  office_role: FinalDecisionOfficeRole;
   document_type: string | null;
-  required_profile_role: OfficeRole;
+  required_profile_role: FinalDecisionOfficeRole;
   updated_at: string;
 }
 
 export default function WorkflowAuthoritySettings() {
   const supabase = useMemo(() => createClient(), []);
   const [authorities, setAuthorities] = useState<Authority[]>([]);
-  const [officeRole, setOfficeRole] = useState<OfficeRole>('municipal_treasurer');
+  const [officeRole, setOfficeRole] = useState<FinalDecisionOfficeRole>('municipal_treasurer');
   const [documentType, setDocumentType] = useState('');
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<string[]>([]);
+  const [documentTypesLoading, setDocumentTypesLoading] = useState(true);
+  const [documentTypesError, setDocumentTypesError] = useState('');
+  const [documentTypesReloadKey, setDocumentTypesReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -39,11 +52,37 @@ export default function WorkflowAuthoritySettings() {
     }
     setLoading(false);
   }, [supabase]);
-  const availableDocumentTypes = OFFICE_CONFIG[officeRole].categories;
 
   useEffect(() => {
     void loadAuthorities();
   }, [loadAuthorities]);
+
+  useEffect(() => {
+    let active = true;
+    setAvailableDocumentTypes([]);
+    setDocumentTypesError('');
+    setDocumentTypesLoading(true);
+
+    void fetchWorkflowOfficeDocumentTypes(supabase, officeRole)
+      .then((documentTypes) => {
+        if (active) {
+          setAvailableDocumentTypes(
+            documentTypes.map((documentType) => documentType.document_type)
+          );
+        }
+      })
+      .catch((loadError: unknown) => {
+        console.error('Final decision authority document type load failed:', loadError);
+        if (active) setDocumentTypesError('Could not load document types for this office.');
+      })
+      .finally(() => {
+        if (active) setDocumentTypesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [documentTypesReloadKey, officeRole, supabase]);
 
   const saveAuthority = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,13 +141,16 @@ export default function WorkflowAuthoritySettings() {
           <select
             value={officeRole}
             onChange={(event) => {
-              setOfficeRole(event.target.value as OfficeRole);
-              setDocumentType('');
+              const nextOfficeRole = event.target.value as FinalDecisionOfficeRole;
+              if (FINAL_DECISION_OFFICE_ROLES.includes(nextOfficeRole)) {
+                setOfficeRole(nextOfficeRole);
+                setDocumentType('');
+              }
             }}
             className="mt-1 h-11 w-full rounded-xl border border-warm-border bg-card px-3 text-xs text-warm-text"
           >
-            {Object.entries(OFFICE_CONFIG).map(([role, office]) => (
-              <option key={role} value={role}>{office.label}</option>
+            {FINAL_DECISION_OFFICE_ROLES.map((role) => (
+              <option key={role} value={role}>{OFFICE_CONFIG[role].label}</option>
             ))}
           </select>
         </label>
@@ -118,13 +160,28 @@ export default function WorkflowAuthoritySettings() {
           <select
             value={documentType}
             onChange={(event) => setDocumentType(event.target.value)}
+            disabled={documentTypesLoading || Boolean(documentTypesError)}
             className="mt-1 h-11 w-full rounded-xl border border-warm-border bg-card px-3 text-xs text-warm-text"
           >
-            <option value="">Office-wide default</option>
+            <option value="">
+              {documentTypesLoading ? 'Loading document types...' : 'Office-wide default'}
+            </option>
             {availableDocumentTypes.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
+          {documentTypesError && (
+            <span role="alert" className="mt-1 block text-[10px] text-rejected-text">
+              {documentTypesError}{' '}
+              <button
+                type="button"
+                onClick={() => setDocumentTypesReloadKey((key) => key + 1)}
+                className="font-semibold underline"
+              >
+                Retry
+              </button>
+            </span>
+          )}
         </label>
 
         <button

@@ -62,7 +62,7 @@ Office-created assignments are tracked separately, not as submission statuses. R
 ### 4.1 Submit
 - The submitter selects one initial destination from the destinations available to them: a municipal office or the Daet Tourism Office.
 - The destination picker shows a one-line description of what each office handles. A search box matches the submitter’s words against every office’s document types and suggests offices. This is a suggestion only; the submitter decides.
-- After the destination is chosen, the document-type dropdown lists only the types configured for that office. Each office offers **Other**, which reveals a required, bounded custom description. The Tourism Office dropdown uses a concise set of broad tourism categories; these remain subject to confirmation of the official taxonomy.
+- After the destination is chosen, the document-type dropdown loads only the types in that office’s database catalogue. System administrators maintain each office’s options; **Other** remains protected and reveals a required, bounded custom description. The Tourism catalogue is initially seeded with broad categories and remains subject to confirmation of the official taxonomy.
 - The request summary/context note is optional. When left blank, it is stored as null; the destination, document type, title, and main document remain required.
 - Changing the destination clears the selected document type and any custom text.
 - The submission is routed directly to the selected office, which becomes the responsible office. It is not required to pass through the Tourism Officer.
@@ -181,9 +181,11 @@ The workflow action list depends on **To**. **Send message** is not a workflow a
 - `workflow_submissions.file_*` continues to point to the current primary document for existing preview and forwarding code. Current supporting files are obtained from the current revision; legacy attachment/version rows remain readable during migration.
 - Because change requests cannot occur while assignments are Pending or In Progress, the document a recipient reviews stays the document of record during an assignment. Supplementary attachments may accompany messages when the conversation is writable; whether submitter clarification messages while Changes Requested may include attachments remains open.
 - Each assignment records the file version that was sent.
-- Office-specific document types come from the shared application office configuration and are validated against the database catalogue on submission. The catalogue is seeded through migrations and must stay synchronized with the shared configuration. A user interface for administrators to maintain document types is not included unless separately requested.
+- Office-specific document types come from the database catalogue and are validated against it for both new submissions and redirections. System administrators can add types and permanently remove them from future choices through the admin workspace; writes are restricted to admin-checked database functions. Seed migrations provide the initial catalogue, not an ongoing hard-coded source of truth.
 - `Other` is stored as the classification, separately from the required custom description. The custom text is descriptive only and does not create an assignment or authorization rule.
-- Tourism document types are an interim catalogue of broad event/activity, promotion/marketing, attraction/facility, business/establishment, and information/assistance categories, not a claim that the list is the Tourism Office’s final official taxonomy. Keep the application configuration and database catalogue synchronized.
+- `Other` is a protected catalogue option and cannot be renamed or deleted. Deleting another type removes only its catalogue entry: saved labels on historical submissions remain unchanged. Deletion is blocked while an open submission or document-specific final-decision authority rule depends on that office/type pair.
+- Tourism document types are initially seeded with the interim event/activity, promotion/marketing, attraction/facility, business/establishment, and information/assistance categories. System administrators may maintain the Tourism catalogue without an application-code change; these initial names are not a claim that the list is the Tourism Office’s final official taxonomy.
+- Supporting-document suggestions remain optional guidance for known types. A newly added type is valid without a suggestion, and an unknown or custom type must not be rejected for lacking one.
 
 ## 8. Workflow history (append-only)
 
