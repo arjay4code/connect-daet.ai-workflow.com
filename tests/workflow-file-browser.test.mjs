@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+  ADMIN_DOCUMENT_PAGE_SIZE,
+  paginateFileBrowserItems,
   getDashboardSubmissionPreview,
   matchesFileBrowserFilter,
   matchesOfficeFileBrowserFilter,
+  sortFileBrowserSubmissions,
 } from '../lib/workflow/file-browser.ts';
 
 const officeRoles = [
@@ -20,6 +23,48 @@ test('dashboard submission previews are capped at five and preserve order', () =
     ['newest', 'next', 'third', 'fourth', 'fifth'],
   );
   assert.deepEqual(getDashboardSubmissionPreview(['newest', 'next']), ['newest', 'next']);
+});
+
+test('admin document lists can sort and paginate without dropping records', () => {
+  const submissions = [
+    { id: '2', created_at: '2026-01-02T00:00:00Z', file_name: 'b.pdf', status: 'pending', tracking_number: 'REQ-2' },
+    { id: '1', created_at: '2026-01-03T00:00:00Z', file_name: 'a.pdf', status: 'completed', tracking_number: 'REQ-1' },
+    { id: '3', created_at: '2026-01-01T00:00:00Z', file_name: 'c.pdf', status: 'pending', tracking_number: null },
+  ];
+
+  assert.deepEqual(sortFileBrowserSubmissions(submissions, 'newest').map(({ id }) => id), ['1', '2', '3']);
+  assert.deepEqual(sortFileBrowserSubmissions(submissions, 'file_name_asc').map(({ id }) => id), ['1', '2', '3']);
+  assert.deepEqual(sortFileBrowserSubmissions(submissions, 'tracking_number_desc').map(({ id }) => id), ['2', '1', '3']);
+
+  const firstPage = paginateFileBrowserItems(['a', 'b', 'c'], 1, 2);
+  assert.deepEqual(firstPage, { items: ['a', 'b'], page: 1, totalPages: 2, start: 1, end: 2 });
+  assert.deepEqual(paginateFileBrowserItems(['a', 'b', 'c'], 9, 2), {
+    items: ['c'],
+    page: 2,
+    totalPages: 2,
+    start: 3,
+    end: 3,
+  });
+  assert.deepEqual(paginateFileBrowserItems([], 1, 20), {
+    items: [],
+    page: 1,
+    totalPages: 1,
+    start: 0,
+    end: 0,
+  });
+
+  const manyRequests = Array.from({ length: 101 }, (_, index) => `request-${index + 1}`);
+  assert.equal(ADMIN_DOCUMENT_PAGE_SIZE, 100);
+  const firstHundredRequests = paginateFileBrowserItems(manyRequests, 1, ADMIN_DOCUMENT_PAGE_SIZE);
+  assert.equal(firstHundredRequests.items.length, ADMIN_DOCUMENT_PAGE_SIZE);
+  const lastPage = paginateFileBrowserItems(manyRequests, 2, ADMIN_DOCUMENT_PAGE_SIZE);
+  assert.deepEqual(lastPage, {
+    items: ['request-101'],
+    page: 2,
+    totalPages: 2,
+    start: 101,
+    end: 101,
+  });
 });
 
 test('file browser filters cover workflow statuses without merging terminal outcomes', () => {
@@ -114,16 +159,38 @@ test('all file-management lists use the shared status dropdown', async () => {
   assert.match(dropdown, /<select/);
 });
 
-test('all role dashboards cap their submission previews', async () => {
+test('user and office dashboards keep their compact submission previews', async () => {
   const paths = [
     '../app/(dashboard)/workflow/user/page.tsx',
     '../components/OfficeDashboard.tsx',
-    '../app/(dashboard)/workflow/admin/page.tsx',
   ];
   const files = await Promise.all(paths.map((path) =>
     readFile(new URL(path, import.meta.url), 'utf8')
   ));
   for (const file of files) assert.match(file, /getDashboardSubmissionPreview/);
+});
+
+test('admin document views use consistent shared controls and fixed 100-row pages', async () => {
+  const paths = [
+    '../app/(dashboard)/workflow/admin/page.tsx',
+    '../app/(dashboard)/workflow/admin/submissions/page.tsx',
+  ];
+  const files = await Promise.all(paths.map((path) =>
+    readFile(new URL(path, import.meta.url), 'utf8')
+  ));
+  for (const file of files) {
+    assert.match(file, /FileBrowserSortSelect/);
+    assert.match(file, /FileBrowserPagination/);
+    assert.match(file, /ADMIN_DOCUMENT_PAGE_SIZE/);
+    assert.doesNotMatch(file, /Rows per page/);
+  }
+
+  const [filterControl, sortControl] = await Promise.all([
+    readFile(new URL('../components/FileBrowserFilterSelect.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../components/FileBrowserSortSelect.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(filterControl, /h-12 w-full items-center gap-3 rounded-full/);
+  assert.match(sortControl, /h-12 w-full items-center gap-3 rounded-full/);
 });
 
 test('only submitter file lists render the routing pipeline', async () => {

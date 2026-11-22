@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
@@ -10,6 +10,7 @@ import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
 import { matchesFileBrowserFilter, type FileBrowserFilter } from '@/lib/workflow/file-browser';
 import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
+import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
 
 // ─── Styles & Fonts (synced with dashboard) ──────────────────────────────────
 const fonts = {
@@ -26,6 +27,7 @@ interface PreviewSubmission {
 
 interface FileSubmission extends PreviewSubmission {
   id: string;
+  tracking_number?: string | null;
   created_at: string;
   status: string;
   category?: string | null;
@@ -53,34 +55,38 @@ export default function UserFileRegistry() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [previewFile]);
 
-  useEffect(() => {
-    async function fetchUserFiles() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+  const fetchUserFiles = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        const { data, error } = await supabase
-          .from('workflow_submissions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('workflow_submissions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-        if (error) console.error('Fetch error:', error);
-        const files = data || [];
-        setSubmissions(files);
-      } catch (err) {
-        console.error('Failed to load files:', err);
-      } finally {
-        // Always stop the loading spinner, even when there is no user or the request fails
-        setLoading(false);
-      }
+      if (error) console.error('Fetch error:', error);
+      setSubmissions(data || []);
+    } catch (err) {
+      console.error('Failed to load files:', err);
+    } finally {
+      setLoading(false);
     }
-    fetchUserFiles();
   }, [supabase]);
 
+  useEffect(() => {
+    void fetchUserFiles();
+  }, [fetchUserFiles]);
+
+  useWorkflowAutoRefresh(supabase, fetchUserFiles);
+
   const filteredSubmissions = submissions.filter(file => {
-    const title = file.file_name || '';
-    const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = !query
+      || (file.file_name || '').toLowerCase().includes(query)
+      || (file.tracking_number || '').toLowerCase().includes(query)
+      || file.id.toLowerCase().includes(query);
     return matchesSearch && matchesFileBrowserFilter(file.status, activeFilter);
   });
 
@@ -118,7 +124,7 @@ export default function UserFileRegistry() {
             <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
             <input
               type="text"
-              placeholder="Find a file by name..."
+              placeholder="Find a file by name, tracking number, or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"

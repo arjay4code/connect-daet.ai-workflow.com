@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import DocumentMessaging from '@/components/DocumentMessaging';
 import WorkflowActivityTimeline from '@/components/WorkflowActivityTimeline';
 import WorkflowRevisionTimeline from '@/components/WorkflowRevisionTimeline';
@@ -1176,6 +1177,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
 
         {/* ── Document preview ── */}
         <section className="border-t border-warm-border">
+          <div className="px-5 pt-4 md:px-7">
+            <DocumentDownloadWarning />
+          </div>
           <div className={`flex items-center gap-3 px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
             <button
               type="button"
@@ -1307,6 +1311,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                         file_path: previewingAttachment.file_path,
                         file_type: previewingAttachment.file_type,
                       }}
+                      warnOnDownload
                     />
                   </div>
                 </section>
@@ -1316,7 +1321,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           <div id={`document-preview-${sub.id}`} hidden={!previewOpen}>
             {previewOpen && (
               <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
-                <FilePreview file={sub} />
+                <FilePreview file={sub} warnOnDownload />
               </div>
             )}
           </div>
@@ -1400,6 +1405,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                 history={revisionHistory}
                 loading={revisionHistoryLoading}
                 error={revisionHistoryError}
+                isOfficeWorkspace={isOfficeRole(role) && !readOnly}
               />
             </>
           ) : (

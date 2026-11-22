@@ -83,8 +83,18 @@ export function useSubmissionDetailRealtime(
       })
       .subscribe();
 
+    const pollingTimer = window.setInterval(onRefresh, 30000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') onRefresh();
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshWhenVisible);
+
     return () => {
       refresh.cancel();
+      window.clearInterval(pollingTimer);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [onRefresh, routePlanIdsKey, submissionId, supabase]);

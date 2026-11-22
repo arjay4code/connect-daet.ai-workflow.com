@@ -21,6 +21,17 @@ type UploadMessage = {
   type: 'success' | 'error';
 };
 
+const MAX_SUPPORTING_FILES = 15;
+
+async function getFileFingerprint(file: File): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('Your browser does not support duplicate document checking.');
+  }
+
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function getUploadErrorText(error: unknown): string {
   if (error instanceof Error) return error.message;
 
@@ -58,8 +69,11 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const otherDocumentTypeRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentFingerprintsRef = useRef(new WeakMap<File, string>());
+  const attachmentCheckInProgressRef = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [checkingAttachments, setCheckingAttachments] = useState(false);
   const [description, setDescription] = useState('');
   const [selectedOfficeRole, setSelectedOfficeRole] = useState<SubmissionDestinationRole | ''>('');
   const [category, setCategory] = useState('');
@@ -128,22 +142,73 @@ export default function UploadPage() {
     if (selectedFile) selectMainFile(selectedFile);
   };
 
-  const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (selectedFiles.length === 0 || attachmentCheckInProgressRef.current) return;
     const fileError = getWorkflowFilesTypeError(selectedFiles);
     if (fileError) {
-      setAttachments([]);
       setMessage({ text: fileError, type: 'error' });
-      event.target.value = '';
       return;
     }
 
-    setAttachments(selectedFiles);
-    setMessage(null);
+    attachmentCheckInProgressRef.current = true;
+    setCheckingAttachments(true);
+    try {
+      const seenFingerprints = new Set<string>();
+      for (const attachment of attachments) {
+        const fingerprint = attachmentFingerprintsRef.current.get(attachment)
+          ?? await getFileFingerprint(attachment);
+        attachmentFingerprintsRef.current.set(attachment, fingerprint);
+        seenFingerprints.add(fingerprint);
+      }
+
+      const newAttachments: File[] = [];
+      let duplicateFound = false;
+      for (const selectedFile of selectedFiles) {
+        const fingerprint = await getFileFingerprint(selectedFile);
+        if (seenFingerprints.has(fingerprint)) {
+          duplicateFound = true;
+          continue;
+        }
+        seenFingerprints.add(fingerprint);
+        attachmentFingerprintsRef.current.set(selectedFile, fingerprint);
+        newAttachments.push(selectedFile);
+      }
+
+      if (attachments.length + newAttachments.length > MAX_SUPPORTING_FILES) {
+        setMessage({
+          text: 'You can upload up to 15 supporting documents only',
+          type: 'error',
+        });
+        return;
+      }
+
+      setAttachments((currentAttachments) => [...currentAttachments, ...newAttachments]);
+      setMessage(duplicateFound
+        ? { text: 'Duplicate supporting documents are not allowed. The duplicate file was not added.', type: 'error' }
+        : null);
+    } catch (error) {
+      console.error('Supporting document duplicate check failed:', error);
+      setMessage({
+        text: error instanceof Error ? error.message : 'Could not check the selected supporting documents.',
+        type: 'error',
+      });
+    } finally {
+      attachmentCheckInProgressRef.current = false;
+      setCheckingAttachments(false);
+    }
   };
 
   const handleUpload = async () => {
-    if (uploading) return;
+    if (uploading || checkingAttachments) return;
+    if (!description.trim()) {
+      setMessage({
+        text: 'Enter a brief summary describing your request or the document before submitting.',
+        type: 'error',
+      });
+      return;
+    }
     if (
       !file
       || !selectedOfficeRole
@@ -240,7 +305,7 @@ export default function UploadPage() {
           submission_file_type: contentType,
           submission_file_size: file.size,
           submission_document_type: category,
-          submission_description: description.trim() || null,
+          submission_description: description.trim(),
           submission_purpose: null,
           submission_requested_action: null,
           submission_intended_recipient: null,
@@ -405,15 +470,16 @@ export default function UploadPage() {
 
         <div className="md:col-span-2">
           <label className={labelClass} htmlFor="submission-context">
-            Request summary / context <span className="font-normal normal-case text-muted-text">(optional)</span>
+            Request summary <span className="font-normal normal-case text-rejected-text">(required)</span>
           </label>
           <textarea
             id="submission-context"
             rows={3}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Briefly explain what this submission is about."
+            placeholder="Briefly describe your request or the document you need."
             className={`${fieldClass} h-auto resize-y py-3 leading-relaxed`}
+            required
           />
         </div>
 
@@ -537,16 +603,22 @@ export default function UploadPage() {
 
       <section className="mt-5 rounded-xl border border-warm-border bg-card p-4">
         <label className={`${labelClass} mb-1`} htmlFor="supporting-attachments">
-          Supporting attachments (optional)
+          Supporting documents (optional, up to {MAX_SUPPORTING_FILES} files)
         </label>
         <input
           id="supporting-attachments"
           ref={attachmentInputRef}
           type="file"
           multiple
+          disabled={checkingAttachments || attachments.length >= MAX_SUPPORTING_FILES}
           onChange={handleAttachmentChange}
           className="block w-full text-xs text-muted-text file:mr-3 file:rounded-full file:border-0 file:bg-clay-soft file:px-4 file:py-2 file:text-xs file:font-semibold file:text-clay"
         />
+        {attachments.length === MAX_SUPPORTING_FILES && (
+          <p role="status" className="mt-2 rounded-lg bg-pending-bg px-3 py-2 text-[11px] font-medium text-pending-text">
+            You can upload up to 15 supporting documents only
+          </p>
+        )}
         {supportingDocumentSuggestions.length > 0 && (
           <div className="mt-4 rounded-xl border border-clay/30 bg-clay-soft/30 px-4 py-3">
             <p className="text-xs font-semibold text-warm-text">
@@ -600,14 +672,16 @@ export default function UploadPage() {
         <button
           type="button"
           onClick={handleUpload}
-          disabled={uploading || !file}
+          disabled={uploading || checkingAttachments || !file}
           className={`inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-full px-7 text-xs font-semibold transition-colors sm:w-auto ${
-            uploading || !file
+            uploading || checkingAttachments || !file
               ? 'cursor-not-allowed bg-sidebar text-muted-text'
               : 'bg-clay text-white hover:bg-warm-text'
           }`}
         >
-          {uploading ? (
+          {checkingAttachments ? (
+            'Checking supporting documents...'
+          ) : uploading ? (
             <>
               <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
               Submitting...

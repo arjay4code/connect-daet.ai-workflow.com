@@ -9,6 +9,12 @@ export async function proxy(req: NextRequest) {
       headers: req.headers,
     },
   })
+  const withAuthCookies = (response: NextResponse) => {
+    res.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+  const redirectWithAuthCookies = (url: URL) =>
+    withAuthCookies(NextResponse.redirect(url))
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,9 +28,13 @@ export async function proxy(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             req.cookies.set(name, value)
           )
+          const previousCookies = res.cookies.getAll()
           res = NextResponse.next({
-            request: req,
+            request: {
+              headers: req.headers,
+            },
           })
+          previousCookies.forEach((cookie) => res.cookies.set(cookie))
           cookiesToSet.forEach(({ name, value, options }) =>
             res.cookies.set(name, value, options)
           )
@@ -33,16 +43,20 @@ export async function proxy(req: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.redirect(new URL('/login', req.url))
+    if (authError?.name === 'AuthRetryableFetchError') {
+      console.error('Authentication temporarily unavailable during dashboard access:', authError.message)
+      return withAuthCookies(new NextResponse('Authentication is temporarily unavailable. Please retry.', { status: 503 }))
+    }
+    return redirectWithAuthCookies(new URL('/login', req.url))
   }
 
   if (!user.email_confirmed_at) {
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('verification', 'required')
-    return NextResponse.redirect(loginUrl)
+    return redirectWithAuthCookies(loginUrl)
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -51,10 +65,15 @@ export async function proxy(req: NextRequest) {
     .eq('id', user.id)
     .single()
 
+  if (profileError && profileError.code !== 'PGRST116') {
+    console.error('Could not load the signed-in user profile during dashboard access:', profileError.message)
+    return withAuthCookies(new NextResponse('Your account profile is temporarily unavailable. Please retry.', { status: 503 }))
+  }
+
   if (profileError || !profile?.role) {
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('profile', 'unavailable')
-    return NextResponse.redirect(loginUrl)
+    return redirectWithAuthCookies(loginUrl)
   }
 
   if (profile.is_active === false) {
@@ -62,10 +81,7 @@ export async function proxy(req: NextRequest) {
     const disabledResponse = NextResponse.redirect(
       new URL('/login?account=disabled', req.url)
     )
-    res.cookies.getAll().forEach(({ name, value, ...options }) => {
-      disabledResponse.cookies.set(name, value, options)
-    })
-    return disabledResponse
+    return withAuthCookies(disabledResponse)
   }
 
   const role = profile?.role ?? null
@@ -74,14 +90,14 @@ export async function proxy(req: NextRequest) {
   if (pathname === '/workflow/approver' || pathname.startsWith('/workflow/approver/')) {
     const legacySuffix = pathname.slice('/workflow/approver'.length)
     if (!isOfficeRole(role) && role !== 'system_admin') {
-      return NextResponse.redirect(new URL(getRoleHomePath(role), req.url))
+      return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
     }
 
     const officeRole = isOfficeRole(role) ? role : 'tourism_officer'
     const destination = new URL(`/workflow/reviewer${legacySuffix}`, req.url)
     destination.search = req.nextUrl.search
     if (role === 'system_admin') destination.searchParams.set('office', officeRole)
-    return NextResponse.redirect(destination)
+    return redirectWithAuthCookies(destination)
   }
 
   const legacyOffice = Object.entries(OFFICE_CONFIG).find(([, office]) =>
@@ -90,22 +106,22 @@ export async function proxy(req: NextRequest) {
   if (legacyOffice) {
     const [officeRole, office] = legacyOffice
     if (role !== officeRole && role !== 'system_admin') {
-      return NextResponse.redirect(new URL(getRoleHomePath(role), req.url))
+      return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
     }
 
     const legacySuffix = pathname.slice(office.legacyPath.length)
     const destination = new URL(`/workflow/reviewer${legacySuffix}`, req.url)
     destination.search = req.nextUrl.search
     if (role === 'system_admin') destination.searchParams.set('office', officeRole)
-    return NextResponse.redirect(destination)
+    return redirectWithAuthCookies(destination)
   }
 
   if (pathname.startsWith('/workflow/user') && role !== 'submitter') {
-    return NextResponse.redirect(new URL(getRoleHomePath(role), req.url))
+    return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
   }
 
   if (pathname.startsWith('/workflow/admin') && role !== 'system_admin') {
-    return NextResponse.redirect(new URL(getRoleHomePath(role), req.url))
+    return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
   }
 
   if (
@@ -113,7 +129,7 @@ export async function proxy(req: NextRequest) {
     && !isOfficeRole(role)
     && role !== 'system_admin'
   ) {
-    return NextResponse.redirect(new URL(getRoleHomePath(role), req.url))
+    return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
   }
 
   if (
@@ -121,7 +137,7 @@ export async function proxy(req: NextRequest) {
     && role === 'system_admin'
     && !isOfficeRole(req.nextUrl.searchParams.get('office'))
   ) {
-    return NextResponse.redirect(new URL('/workflow/admin', req.url))
+    return redirectWithAuthCookies(new URL('/workflow/admin', req.url))
   }
 
   return res

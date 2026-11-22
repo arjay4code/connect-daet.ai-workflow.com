@@ -14,7 +14,7 @@ export default function FileBrowserFilterSelect({
   onChange: (value: FileBrowserFilter) => void;
 }) {
   return (
-    <label className="flex h-12 w-full items-center gap-3 rounded-full border border-warm-border bg-card px-4 transition-colors focus-within:border-clay lg:w-64">
+    <label className="flex h-12 w-full items-center gap-3 rounded-full border border-warm-border bg-card px-4 transition-colors focus-within:border-clay">
       <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">
         Status
       </span>

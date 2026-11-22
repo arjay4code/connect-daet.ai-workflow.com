@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { downloadFile } from '@/components/FilePreview';
+import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import {
   getWorkflowFileMimeType,
   getWorkflowFilesTypeError,
@@ -1393,7 +1394,14 @@ export default function DocumentMessaging({
             </nav>
           )}
 
-          <div id={`messages-panel-${submissionId}`}>{conversation}</div>
+          <div id={`messages-panel-${submissionId}`}>
+            {isOfficeWorkspace && messages.some((message) => message.attachments.length > 0) && (
+              <div className="border-b border-warm-border bg-sidebar/40 px-4 py-3 md:px-5">
+                <DocumentDownloadWarning />
+              </div>
+            )}
+            {conversation}
+          </div>
 
           {!readOnly && <form
             onSubmit={(event) => void sendConversationMessage(event)}

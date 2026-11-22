@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getWorkflowTiming } from '@/lib/workflow/timing';
+import { getSubmissionStatusLabel } from '@/lib/workflow/status';
+import {
+  calculateWorkflowReportAverages,
+  formatReportDuration,
+} from '@/lib/workflow/report-metrics';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -16,27 +21,49 @@ interface SubmissionReportRow {
   id: string;
   tracking_number: string | null;
   file_name: string;
-  category: string | null;
   status: string;
   created_at: string;
   updated_at: string;
+  verified_at: string | null;
+  office_reviewed_at: string | null;
+  approved_at: string | null;
+  completed_at: string | null;
   current_stage_due_at: string | null;
-  current_responsible_role: string | null;
   auditLogs: {
     action_type: string;
     created_at: string;
-    profiles?: { full_name: string | null; email: string; role: string } | null;
   }[];
 }
 
-const statusLabels: Record<string, string> = {
-  pending: 'Under verification',
-  pending_approver: 'Under verification',
+const IN_PROGRESS_STATUSES = new Set([
+  'submitted',
+  'pending',
+  'pending_approver',
+  'pending_admin',
+  'pending_office',
+  'pending_mayor',
+  'in_process',
+]);
+
+const REJECTED_OR_RETURNED_STATUSES = new Set([
+  'returned',
+  'returned_for_requirements',
+  'changes_requested',
+  'declined_by_approver',
+  'declined_by_admin',
+  'declined_by_office',
+  'declined_by_mayor',
+  'rejected',
+]);
+
+const REPORT_STATUS_LABELS: Record<string, string> = {
   pending_admin: 'Pending approval',
-  approved: 'Approved',
-  completed: 'Completed',
   declined_by_approver: 'Returned for correction',
-  declined_by_admin: 'Rejected',
+  declined_by_admin: 'Rejected by administrator',
+  declined_by_office: 'Rejected by office',
+  declined_by_mayor: 'Rejected by mayor',
+  returned_for_requirements: 'Returned for requirements',
+  changes_requested: 'Changes requested',
 };
 
 const getStatusClasses = (status: string) => {
@@ -58,34 +85,6 @@ function StatCard({ label, value, alert = false }: { label: string; value: strin
   );
 }
 
-function BreakdownCard({
-  title,
-  entries,
-  emptyText,
-}: {
-  title: string;
-  entries: [string, number][];
-  emptyText?: string;
-}) {
-  return (
-    <section className="rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-      <p className="mb-4 text-xs font-semibold text-warm-text">{title}</p>
-      {entries.length === 0 ? (
-        <p className="text-xs text-muted-text">{emptyText || 'No data'}</p>
-      ) : (
-        <div className="divide-y divide-warm-border">
-          {entries.map(([name, count]) => (
-            <div key={name} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-              <span className="truncate text-xs text-warm-text">{name}</span>
-              <span className="rounded-md bg-sidebar px-2 py-1 text-[10px] font-semibold text-muted-text">{count}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 export default function ReportsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<SubmissionReportRow[]>([]);
@@ -99,7 +98,7 @@ export default function ReportsPage() {
 
     const { data, error: queryError } = await supabase
       .from('workflow_submissions')
-      .select('id, tracking_number, file_name, category, status, created_at, updated_at, current_stage_due_at, current_responsible_role, workflow_audit_logs(action_type, created_at, profiles:action_by(full_name, email, role))')
+      .select('id, tracking_number, file_name, status, created_at, updated_at, verified_at, office_reviewed_at, approved_at, completed_at, current_stage_due_at, workflow_audit_logs(action_type, created_at)')
       .order('created_at', { ascending: false });
 
     if (queryError) {
@@ -108,10 +107,7 @@ export default function ReportsPage() {
     } else {
       setRows((data || []).map((row) => ({
         ...row,
-        auditLogs: (row.workflow_audit_logs || []).map((log) => ({
-          ...log,
-          profiles: Array.isArray(log.profiles) ? log.profiles[0] || null : log.profiles,
-        })),
+        auditLogs: row.workflow_audit_logs || [],
       })));
     }
     setLoading(false);
@@ -132,94 +128,22 @@ export default function ReportsPage() {
     return (!fromDate || createdDate >= fromDate) && (!toDate || createdDate <= toDate);
   }), [fromDate, rows, toDate]);
 
-  const counts = useMemo(() => filteredRows.reduce<Record<string, number>>((result, row) => {
-    result[row.status] = (result[row.status] || 0) + 1;
-    return result;
-  }, {}), [filteredRows]);
+  const reportAverages = useMemo(
+    () => calculateWorkflowReportAverages(filteredRows),
+    [filteredRows]
+  );
 
-  const averageProcessingHours = useMemo(() => {
-    const completed = filteredRows.filter((row) => row.status === 'completed');
-    if (completed.length === 0) return null;
-    const totalHours = completed.reduce((total, row) => {
-      return total + (new Date(row.updated_at).getTime() - new Date(row.created_at).getTime()) / 3600000;
-    }, 0);
-    return totalHours / completed.length;
-  }, [filteredRows]);
-
-  const averageStageHours = useMemo(() => {
-    const completed = filteredRows.filter((row) => row.status === 'completed');
-    if (completed.length === 0) return { verification: null, approval: null, completion: null };
-
-    let verificationTotal = 0;
-    let approvalTotal = 0;
-    let completionTotal = 0;
-    let verificationCount = 0;
-    let approvalCount = 0;
-    let completionCount = 0;
-
-    completed.forEach((row) => {
-      const submitted = row.auditLogs.find((log) => log.action_type === 'SUBMITTED');
-      const verified = row.auditLogs.find((log) => log.action_type === 'VERIFICATION_PASSED');
-      const approved = row.auditLogs.find((log) => log.action_type === 'FINAL_APPROVAL');
-      const completedEvent = row.auditLogs.find((log) => log.action_type === 'WORKFLOW_COMPLETED');
-      if (submitted && verified) {
-        verificationTotal += (new Date(verified.created_at).getTime() - new Date(submitted.created_at).getTime()) / 3600000;
-        verificationCount += 1;
-      }
-      if (verified && approved) {
-        approvalTotal += (new Date(approved.created_at).getTime() - new Date(verified.created_at).getTime()) / 3600000;
-        approvalCount += 1;
-      }
-      if (approved && completedEvent) {
-        completionTotal += (new Date(completedEvent.created_at).getTime() - new Date(approved.created_at).getTime()) / 3600000;
-        completionCount += 1;
-      }
-    });
-
-    return {
-      verification: verificationCount ? verificationTotal / verificationCount : null,
-      approval: approvalCount ? approvalTotal / approvalCount : null,
-      completion: completionCount ? completionTotal / completionCount : null,
-    };
-  }, [filteredRows]);
-
-  // Overdue rows are computed once and reused for both the count and the stage breakdown
   const overdueRows = useMemo(
     () => filteredRows.filter((row) => getWorkflowTiming(row).state === 'overdue'),
     [filteredRows]
   );
-
-  const overdueByStage = useMemo(() => overdueRows.reduce<Record<string, number>>((result, row) => {
-    const stage = row.status === 'pending' || row.status === 'pending_approver'
-      ? 'Verification'
-      : row.status === 'pending_admin'
-        ? 'Approval'
-        : 'Completion';
-    result[stage] = (result[stage] || 0) + 1;
-    return result;
-  }, {}), [overdueRows]);
-
-  const categoryCounts = useMemo(() => filteredRows.reduce<Record<string, number>>((result, row) => {
-    const category = row.category || 'General';
-    result[category] = (result[category] || 0) + 1;
-    return result;
-  }, {}), [filteredRows]);
-
-  const personnelCounts = useMemo(() => filteredRows
-    .flatMap((row) => row.auditLogs
-      .filter((log) => ['VERIFICATION_PASSED', 'FINAL_APPROVAL', 'WORKFLOW_COMPLETED'].includes(log.action_type))
-      .map((log) => log.profiles?.full_name || log.profiles?.email || 'Unknown personnel'))
-    .reduce<Record<string, number>>((result, name) => {
-      result[name] = (result[name] || 0) + 1;
-      return result;
-    }, {}), [filteredRows]);
 
   const exportCsv = () => {
     const header = ['Tracking Number', 'Document', 'Status', 'Submitted At', 'Last Updated', 'Audit Events'];
     const lines = filteredRows.map((row) => [
       row.tracking_number || '',
       row.file_name,
-      statusLabels[row.status] || row.status,
+      REPORT_STATUS_LABELS[row.status] || getSubmissionStatusLabel(row.status),
       row.created_at,
       row.updated_at,
       row.auditLogs.length,
@@ -234,18 +158,14 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const formatHours = (value: number | null) => (value === null ? 'N/A' : `${value.toFixed(1)} h`);
-
   const reportCards = [
     { label: 'Total submissions', value: filteredRows.length },
-    { label: 'Under verification', value: (counts.pending || 0) + (counts.pending_approver || 0) },
-    { label: 'Pending approval', value: counts.pending_admin || 0 },
-    { label: 'Completed', value: counts.completed || 0 },
-    { label: 'Rejected / returned', value: (counts.declined_by_admin || 0) + (counts.declined_by_approver || 0) },
-    { label: 'Average processing', value: formatHours(averageProcessingHours) },
-    { label: 'Avg verification', value: formatHours(averageStageHours.verification) },
-    { label: 'Avg approval', value: formatHours(averageStageHours.approval) },
-    { label: 'Avg completion', value: formatHours(averageStageHours.completion) },
+    { label: 'In progress', value: filteredRows.filter((row) => IN_PROGRESS_STATUSES.has(row.status)).length },
+    { label: 'Completed', value: filteredRows.filter((row) => row.status === 'completed' || row.status === 'approved').length },
+    { label: 'Rejected / returned', value: filteredRows.filter((row) => REJECTED_OR_RETURNED_STATUSES.has(row.status)).length },
+    { label: 'Avg. time to review', value: formatReportDuration(reportAverages.timeToReview) },
+    { label: 'Avg. review to decision', value: formatReportDuration(reportAverages.reviewToDecision) },
+    { label: 'Avg. time to completion', value: formatReportDuration(reportAverages.timeToCompletion) },
     { label: 'Overdue', value: overdueRows.length, alert: overdueRows.length > 0 },
   ];
 
@@ -307,13 +227,6 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Breakdowns */}
-      <div className="mb-8 grid grid-cols-1 gap-3 lg:grid-cols-3 max-md:mb-5">
-        <BreakdownCard title="Overdue by stage" entries={Object.entries(overdueByStage)} emptyText="No overdue records" />
-        <BreakdownCard title="Volume by category" entries={Object.entries(categoryCounts)} emptyText="No submissions" />
-        <BreakdownCard title="Actions by personnel" entries={Object.entries(personnelCounts)} emptyText="No personnel actions" />
-      </div>
-
       {/* Report list header */}
       <div className="mb-4 flex items-center gap-3">
         <h2 className="text-sm font-semibold text-warm-text">Submission report</h2>
@@ -364,7 +277,7 @@ export default function ReportsPage() {
                     <td className="px-5 py-4 max-md:px-3.5">
                       <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-medium ${getStatusClasses(row.status)}`}>
                         <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-                        {statusLabels[row.status] || row.status}
+                        {REPORT_STATUS_LABELS[row.status] || getSubmissionStatusLabel(row.status)}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-[11px] text-muted-text max-md:px-3.5">

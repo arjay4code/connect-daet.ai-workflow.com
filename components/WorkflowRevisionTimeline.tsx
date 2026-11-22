@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import FilePreview from '@/components/FilePreview';
+import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import { createClient } from '@/lib/supabase/client';
 import { getWorkflowRevisionFileChanges } from '@/lib/workflow/revisions';
 import type {
@@ -160,10 +161,12 @@ export default function WorkflowRevisionTimeline({
   history,
   loading = false,
   error = null,
+  isOfficeWorkspace = false,
 }: {
   history: WorkflowRevisionHistory | null;
   loading?: boolean;
   error?: string | null;
+  isOfficeWorkspace?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
@@ -280,6 +283,12 @@ export default function WorkflowRevisionTimeline({
           Review each version of your request, including its files and any requested changes.
         </p>
       </header>
+
+      {isOfficeWorkspace && history?.revisions.some((revision) => revision.files.length > 0) && (
+        <div className="mb-4">
+          <DocumentDownloadWarning />
+        </div>
+      )}
 
       {history?.changeRequestRepairNeeded && (
         <p className="mb-4 rounded-xl border border-pending-text/20 bg-pending-bg px-3 py-2.5 text-xs text-pending-text" role="status">
@@ -419,7 +428,7 @@ export default function WorkflowRevisionTimeline({
               file_name: previewingFile.file.fileName,
               file_url: previewingFile.signedUrl,
               file_type: previewingFile.file.fileType,
-            }} />
+            }} warnOnDownload={isOfficeWorkspace} />
           </div>
         </div>
       </div>

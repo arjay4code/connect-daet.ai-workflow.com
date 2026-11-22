@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { createClient } from '@/lib/supabase/client';
 import { isOfficeRole, OFFICE_CONFIG, type OfficeRole } from '@/lib/workflow/offices';
+import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
 
 interface RetrievalDetails {
   submission_id: string;
@@ -177,14 +178,21 @@ export default function DocumentRetrievalPage() {
     setDetails(retrieval);
     setLocation({
       department_section: retrieval.department_section || '',
-      room: retrieval.room || '',
-      cabinet: retrieval.cabinet || '',
+      room: '',
+      cabinet: '',
       shelf: retrieval.shelf || '',
-      drawer: retrieval.drawer || '',
+      drawer: '',
       folder_box: retrieval.folder_box || '',
     });
     setIdentityVerified(false);
   }, [supabase]);
+
+  useWorkflowAutoRefresh(
+    supabase,
+    () => {
+      if (manualCode.trim()) void lookupRetrieval(manualCode);
+    },
+  );
 
   useEffect(() => {
     if (!officeRole || autoLookupAttemptedRef.current) return;
@@ -247,10 +255,10 @@ export default function DocumentRetrievalPage() {
       const { error } = await supabase.rpc('update_workflow_document_location', {
         target_submission_id: details.submission_id,
         location_department_section: location.department_section,
-        location_room: location.room,
-        location_cabinet: location.cabinet,
+        location_room: '',
+        location_cabinet: '',
         location_shelf: location.shelf,
-        location_drawer: location.drawer,
+        location_drawer: '',
         location_folder_box: location.folder_box,
       });
       if (error) throw error;
@@ -289,8 +297,8 @@ export default function DocumentRetrievalPage() {
       }
       setDetails((current) => current ? {
         ...current,
-        processing_status: 'Released',
-        retrieval_status: 'released',
+        processing_status: 'Released copy',
+        retrieval_status: 'active',
         released_at: release.released_at,
         releasing_officer_name: release.releasing_officer_name || officerName,
         latest_update: release.released_at,
@@ -411,7 +419,7 @@ export default function DocumentRetrievalPage() {
               <section className="space-y-4 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-warm-border pb-4">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-text">Request reference</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-text">Tracking Number</p>
                     <p className="mt-1 font-mono text-lg font-bold text-clay">{details.request_reference}</p>
                     <h2 className="mt-2 break-words font-serif text-2xl text-warm-text">{details.document_title}</h2>
                     <a
@@ -424,11 +432,9 @@ export default function DocumentRetrievalPage() {
                     </a>
                   </div>
                   <span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
-                    details.retrieval_status === 'released'
-                      ? 'bg-approved-bg text-approved-text'
-                      : 'bg-pending-bg text-pending-text'
+                    'bg-pending-bg text-pending-text'
                   }`}>
-                    {details.retrieval_status === 'released' ? 'Released' : details.processing_status.replaceAll('_', ' ')}
+                    {details.processing_status.replaceAll('_', ' ')}
                   </span>
                 </div>
 
@@ -446,11 +452,8 @@ export default function DocumentRetrievalPage() {
                   <p className="mt-1 text-[10px] text-muted-text">{officeLabel}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {[
-                      ['Department / Section', details.department_section],
-                      ['Room', details.room],
-                      ['Cabinet', details.cabinet],
+                      ['Department / Room', details.department_section],
                       ['Shelf', details.shelf],
-                      ['Drawer', details.drawer],
                       ['Folder / Box', details.folder_box],
                     ].map(([label, value]) => (
                       <div key={label}>
@@ -464,13 +467,19 @@ export default function DocumentRetrievalPage() {
 
               <section className="space-y-4 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
                 <h2 className="text-sm font-semibold text-warm-text">Storage and handover</h2>
-                <fieldset disabled={details.retrieval_status === 'released'} className="space-y-3 disabled:opacity-60">
+                <div className={`rounded-xl px-3 py-3 text-xs ${
+                  details.received_at
+                    ? 'bg-approved-bg text-approved-text'
+                    : 'bg-pending-bg text-pending-text'
+                }`}>
+                  {details.received_at
+                    ? `Physical copy stored ${formatDate(details.received_at)}`
+                    : 'Physical copy is not yet marked as stored'}
+                </div>
+                <fieldset className="space-y-3">
                   {([
-                    ['department_section', 'Department / Section'],
-                    ['room', 'Room'],
-                    ['cabinet', 'Cabinet'],
+                    ['department_section', 'Department / Room'],
                     ['shelf', 'Shelf'],
-                    ['drawer', 'Drawer'],
                     ['folder_box', 'Folder / Box'],
                   ] as const).map(([field, label]) => (
                     <label key={field} className="block text-[10px] font-medium text-muted-text">
@@ -486,20 +495,14 @@ export default function DocumentRetrievalPage() {
                   <button
                     type="button"
                     onClick={() => void saveLocation()}
-                    disabled={savingLocation || details.retrieval_status === 'released'}
+                    disabled={savingLocation}
                     className="h-10 w-full rounded-full border border-warm-border text-xs font-semibold text-warm-text disabled:opacity-50"
                   >
                     {savingLocation ? 'Saving location...' : 'Save physical location'}
                   </button>
                 </fieldset>
 
-                {details.retrieval_status === 'released' ? (
-                  <div className="rounded-xl bg-approved-bg p-3 text-xs text-approved-text">
-                    Released {formatDate(details.released_at)}
-                    {details.releasing_officer_name ? ` by ${details.releasing_officer_name}` : ''}.
-                  </div>
-                ) : (
-                  <div className="space-y-3 border-t border-warm-border pt-4">
+                <div className="space-y-3 border-t border-warm-border pt-4">
                     <label className="flex items-start gap-2 text-[11px] leading-relaxed text-warm-text">
                       <input
                         type="checkbox"
@@ -512,13 +515,12 @@ export default function DocumentRetrievalPage() {
                     <button
                       type="button"
                       onClick={() => void confirmRelease()}
-                      disabled={!identityVerified || releasing}
+                      disabled={!identityVerified || !details.received_at || releasing}
                       className="h-11 w-full rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {releasing ? 'Recording handover...' : 'Confirm document handover'}
+                      {releasing ? 'Recording handover...' : 'Confirm copy handover'}
                     </button>
                   </div>
-                )}
               </section>
             </div>
           )}

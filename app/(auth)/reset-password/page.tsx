@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { getPasswordValidationError } from '@/lib/auth/password';
+import { getPasswordValidationError, MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
 
 const fieldClasses =
   'h-11 w-full rounded-full border border-warm-border bg-card px-4 text-sm text-warm-text caret-current outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay';
@@ -86,7 +86,7 @@ export default function ResetPasswordPage() {
             {updated ? 'Password updated' : 'Choose a new password'}
           </h1>
           <p className="mt-2 text-xs text-muted-text">
-            {updated ? 'You can now sign in with your new password.' : 'Use at least 8 characters.'}
+            {updated ? 'You can now sign in with your new password.' : `Use at least ${MINIMUM_PASSWORD_LENGTH} characters.`}
           </p>
         </div>
         <section className="rounded-2xl border border-warm-border bg-card p-5">
@@ -121,7 +121,7 @@ export default function ResetPasswordPage() {
                   id="password"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={MINIMUM_PASSWORD_LENGTH}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className={fieldClasses}
@@ -136,7 +136,7 @@ export default function ResetPasswordPage() {
                   id="confirmPassword"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={MINIMUM_PASSWORD_LENGTH}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   className={fieldClasses}

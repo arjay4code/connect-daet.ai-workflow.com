@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import DocumentDownloadWarning from '@/components/DocumentDownloadWarning';
 import type { Parsed } from '@/lib/previewParsers';
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -115,7 +116,13 @@ const wrapHtml = (body: string) =>
   `</head><body>${body}</body></html>`;
 
 // ─── Component ───────────────────────────────────────────────────────────────
-export default function FilePreview({ file }: { file: PreviewableFile }) {
+export default function FilePreview({
+  file,
+  warnOnDownload = false,
+}: {
+  file: PreviewableFile;
+  warnOnDownload?: boolean;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -226,9 +233,14 @@ export default function FilePreview({ file }: { file: PreviewableFile }) {
       <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 text-2xl text-gray-500" aria-hidden="true">▤</div>
       <p className="font-serif text-2xl text-gray-900">No preview available</p>
       <p className="mt-2 max-w-xs text-xs leading-5 text-gray-500">{fallbackMessage}</p>
+      {warnOnDownload && (
+        <div className="mt-4 max-w-xl text-left">
+          <DocumentDownloadWarning />
+        </div>
+      )}
       <button
         onClick={() => downloadFile(url, file.file_name)}
-        className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-black px-6 text-xs font-semibold text-white transition-colors hover:bg-gray-800"
+        className={`${warnOnDownload ? 'mt-4' : 'mt-6'} inline-flex h-11 items-center justify-center rounded-full bg-black px-6 text-xs font-semibold text-white transition-colors hover:bg-gray-800`}
       >
         Download file
       </button>
