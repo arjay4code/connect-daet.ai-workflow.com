@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -285,7 +286,7 @@ export default function DocumentMessaging({
   submissionId,
   fileName,
   trackingNumber,
-  submitterConversationLabel = 'Submitter conversation',
+  submitterConversationLabel = 'Requestee conversation',
   activity,
   assignmentConversations = EMPTY_ASSIGNMENT_CONVERSATIONS,
   defaultAssignmentStepId = null,
@@ -477,7 +478,7 @@ export default function DocumentMessaging({
       .order('created_at', { ascending: false });
 
     if (attachmentsError) {
-      console.error('Could not load shared document attachments:', attachmentsError.message);
+      logClientError('Could not load shared document attachments:', attachmentsError.message);
       setConversationError('Could not load files shared in messages. Refresh the page to try again.');
       return;
     }
@@ -493,7 +494,7 @@ export default function DocumentMessaging({
       .select('id, sender_name, sender_role, routing_step_id')
       .in('id', attachments.map((attachment) => attachment.message_id));
     if (messagesError) {
-      console.error('Could not load shared-file conversation details:', messagesError.message);
+      logClientError('Could not load shared-file conversation details:', messagesError.message);
       setConversationError('Could not load file sender details. Refresh the page to try again.');
       return;
     }
@@ -617,8 +618,8 @@ export default function DocumentMessaging({
           table: 'workflow_messages',
           filter: `submission_id=eq.${submissionId}`,
         }, () => {
-          void refreshLatest(userId).catch((loadError: unknown) => {
-            console.error('Live document message refresh failed:', loadError);
+          void refreshLatest(user.id).catch((loadError: unknown) => {
+            logClientError('Live document message refresh failed:', loadError);
             if (active) setError(loadError instanceof Error ? loadError.message : 'Could not refresh messages.');
           });
         })
@@ -628,8 +629,8 @@ export default function DocumentMessaging({
           table: 'workflow_message_attachments',
           filter: `submission_id=eq.${submissionId}`,
         }, () => {
-          void refreshLatest(userId).catch((loadError: unknown) => {
-            console.error('Live message attachment refresh failed:', loadError);
+          void refreshLatest(user.id).catch((loadError: unknown) => {
+            logClientError('Live message attachment refresh failed:', loadError);
             if (active) setError(loadError instanceof Error ? loadError.message : 'Could not refresh attachments.');
           });
           void refreshSharedAttachments();
@@ -641,7 +642,7 @@ export default function DocumentMessaging({
           filter: `submission_id=eq.${submissionId}`,
         }, () => {
           void refreshVisibleMetadata().catch((loadError: unknown) => {
-            console.error('Live message read receipt refresh failed:', loadError);
+            logClientError('Live message read receipt refresh failed:', loadError);
             if (active) setError(loadError instanceof Error ? loadError.message : 'Could not refresh read receipts.');
           });
         })
@@ -662,7 +663,7 @@ export default function DocumentMessaging({
     };
 
     void initialize().catch((loadError: unknown) => {
-      console.error('Document conversation initialization failed:', loadError);
+      logClientError('Document conversation initialization failed:', loadError);
       if (active) {
         setError(loadError instanceof Error ? loadError.message : 'Could not load this conversation.');
         setLoading(false);
@@ -686,7 +687,7 @@ export default function DocumentMessaging({
       setMessages((current) => mergeMessages(current, page));
       setHasEarlier(page.length === PAGE_SIZE);
     } catch (loadError) {
-      console.error('Earlier document messages could not be loaded:', loadError);
+      logClientError('Earlier document messages could not be loaded:', loadError);
       setError(loadError instanceof Error ? loadError.message : 'Could not load earlier messages.');
     } finally {
       setLoadingEarlier(false);
@@ -789,7 +790,7 @@ export default function DocumentMessaging({
         const { error: cleanupError } = await supabase.storage
           .from('workflow_message_attachments')
           .remove(paths);
-        if (cleanupError) console.error('Unlinked attachment cleanup failed:', cleanupError.message);
+        if (cleanupError) logClientError('Unlinked attachment cleanup failed:', cleanupError.message);
       }
       throw uploadError;
     }
@@ -807,7 +808,7 @@ export default function DocumentMessaging({
       await refreshLatest(userId);
       await refreshSharedAttachments();
     } catch (refreshError) {
-      console.error('Message was sent but the conversation did not refresh:', refreshError);
+      logClientError('Message was sent but the conversation did not refresh:', refreshError);
       notify('Your action succeeded, but the conversation did not refresh. Reload this page to see the latest messages.');
     }
   };
@@ -842,11 +843,11 @@ export default function DocumentMessaging({
           .insert(rows);
         if (attachmentError) {
           attachmentsSaved = false;
-          console.error('Message was sent but its attachments were not saved:', attachmentError.message);
+          logClientError('Message was sent but its attachments were not saved:', attachmentError.message);
           const { error: cleanupError } = await supabase.storage
             .from('workflow_message_attachments')
             .remove(paths);
-          if (cleanupError) console.error('Unlinked message attachment cleanup failed:', cleanupError.message);
+          if (cleanupError) logClientError('Unlinked message attachment cleanup failed:', cleanupError.message);
           notify('Your message was sent, but its attachments could not be saved. Please try sending the files again.');
         }
       }
@@ -856,7 +857,7 @@ export default function DocumentMessaging({
         const { error: cleanupError } = await supabase.storage
           .from('workflow_message_attachments')
           .remove(paths);
-        if (cleanupError) console.error('Unlinked message attachment cleanup failed:', cleanupError.message);
+        if (cleanupError) logClientError('Unlinked message attachment cleanup failed:', cleanupError.message);
       }
       throw sendError;
     }
@@ -953,7 +954,7 @@ export default function DocumentMessaging({
             const { error: cleanupError } = await supabase.storage
               .from('workflow_message_attachments')
               .remove(paths);
-            if (cleanupError) console.error('Unlinked forwarded attachment cleanup failed:', cleanupError.message);
+            if (cleanupError) logClientError('Unlinked forwarded attachment cleanup failed:', cleanupError.message);
           }
           throw forwardError;
         }
@@ -993,7 +994,7 @@ export default function DocumentMessaging({
       messageInputRef.current?.focus();
       return true;
     } catch (actionError) {
-      console.error(`Workflow composer action "${action.value}" failed:`, actionError);
+      logClientError(`Workflow composer action "${action.value}" failed:`, actionError);
       setError(actionError instanceof Error ? actionError.message : 'Could not complete this action.');
       return false;
     } finally {
@@ -1082,7 +1083,7 @@ export default function DocumentMessaging({
       await refreshAfterSend(setConversationNotice);
       conversationInputRef.current?.focus();
     } catch (sendError) {
-      console.error('Document conversation message send failed:', sendError);
+      logClientError('Document conversation message send failed:', sendError);
       setConversationError(sendError instanceof Error ? sendError.message : 'Could not send this message.');
     } finally {
       setSending(false);
@@ -1094,7 +1095,7 @@ export default function DocumentMessaging({
       .from('workflow_message_attachments')
       .createSignedUrl(attachment.file_path, 300);
     if (urlError || !data?.signedUrl) {
-      console.error('Could not authorize message attachment download:', urlError?.message);
+      logClientError('Could not authorize message attachment download:', urlError?.message);
       setConversationError('Could not open this attachment. Please try again.');
       return;
     }
@@ -1120,9 +1121,9 @@ export default function DocumentMessaging({
     : ['complete_assignment', 'return_assignment'].includes(currentAction.value)
       ? `Your note goes to ${recipientLabel}. Attached files are shared in this assignment conversation.`
       : currentAction.value === 'close_submission'
-        ? 'The completion note and optional document are saved with the submission and shared with the submitter.'
+        ? 'The completion note and optional document are saved with the submission and shared with the requestee.'
         : actionRecipient === 'submitter'
-          ? 'These action details are sent to the submitter.'
+          ? 'These action details are sent to the requestee.'
           : `These action details are sent to ${recipientLabel}.`;
   const actionDropdown = workflowComposer ? (
     <div className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -24,6 +25,10 @@ import {
   type FileBrowserFilter,
 } from '@/lib/workflow/file-browser';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
+import StatCard from '@/components/ui/StatCard';
 import {
   summarizeAssignment,
 } from '@/lib/workflow/assignments';
@@ -104,7 +109,7 @@ export default function OfficeDashboard({
       .limit(500);
 
     if (plansError) {
-      console.error('Office route history load failed:', plansError.message);
+      logClientError('Office route history load failed:', plansError.message);
       setError('Could not load this office’s document history. Please try again.');
       setLoading(false);
       return;
@@ -133,7 +138,7 @@ export default function OfficeDashboard({
         .in('routing_plan_id', planIds);
 
       if (stepsError) {
-        console.error('Office route steps load failed:', stepsError.message);
+        logClientError('Office route steps load failed:', stepsError.message);
         setError('Could not load this office’s processing history. Please try again.');
         setLoading(false);
         return;
@@ -194,7 +199,7 @@ export default function OfficeDashboard({
     const { data: currentAssignments, error: assignmentsError } = await currentAssignmentsQuery;
 
     if (assignmentsError) {
-      console.error('Office dashboard assignments load failed:', assignmentsError.message);
+      logClientError('Office dashboard assignments load failed:', assignmentsError.message);
       setError('Could not load this office’s documents. Please try again.');
       setLoading(false);
       return;
@@ -221,7 +226,7 @@ export default function OfficeDashboard({
       .limit(200);
 
     if (fetchError) {
-      console.error('Office dashboard history load failed:', fetchError.message);
+      logClientError('Office dashboard history load failed:', fetchError.message);
       setError('Could not load this office’s documents. Please try again.');
       setLoading(false);
       return;
@@ -293,7 +298,7 @@ export default function OfficeDashboard({
     try {
       await downloadFile(await getFileUrl(supabase, previewFile), previewFile.file_name);
     } catch (downloadError) {
-      console.error('Office document download failed:', downloadError);
+      logClientError('Office document download failed:', downloadError);
       setPreviewError(downloadError instanceof Error ? downloadError.message : 'Could not download this document.');
     }
   };
@@ -310,44 +315,35 @@ export default function OfficeDashboard({
 
   return (
     <div className="w-full">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text">
-            <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Office workspace
-          </p>
-          <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
-            {view === 'dashboard' ? `${office.label} dashboard` : 'File management'}
-          </h1>
-          <p className="mt-2 text-xs text-muted-text">
-            {view === 'dashboard'
-              ? 'Review your office workload and continue processing documents that need action.'
-              : 'Search, filter, and review documents routed to or processed by your office.'}
-          </p>
-        </div>
-        {view === 'file-management' && (
-          <Link
-            href={officeArchivePath}
-            className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
-          >
-            Archive
-          </Link>
-        )}
-      </header>
+      <PageHero
+        eyebrow="Office workspace"
+        icon={view === 'dashboard' ? 'building' : 'files'}
+        title={view === 'dashboard' ? `${office.label} dashboard` : 'File management'}
+        description={
+          view === 'dashboard'
+            ? needsReview > 0
+              ? `${needsReview} document${needsReview === 1 ? '' : 's'} need${needsReview === 1 ? 's' : ''} your office's action. Continue processing where you left off.`
+              : 'Review your office workload and continue processing documents that need action.'
+            : 'Search, filter, and review documents routed to or processed by your office.'
+        }
+        actions={
+          view === 'file-management' ? (
+            <Link
+              href={officeArchivePath}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
+            >
+              <Icon name="archive" size={15} /> Archive
+            </Link>
+          ) : undefined
+        }
+      />
 
       {view === 'dashboard' ? (
         <>
-          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {[
-              { label: 'Needs action', value: needsReview, hint: 'Responsible submissions and active assignments' },
-              { label: 'Completed', value: completed, hint: 'Finished submissions' },
-              { label: 'In office history', value: submissions.length, hint: 'Current and previously routed documents' },
-            ].map((stat) => (
-              <section key={stat.label} className="rounded-2xl border border-warm-border bg-card p-5">
-                <h2 className="text-xs font-medium text-muted-text">{stat.label}</h2>
-                <p className="mt-3 font-serif text-[34px] leading-none text-warm-text">{stat.value}</p>
-                <p className="mt-3 text-[11px] text-muted-text">{stat.hint}</p>
-              </section>
-            ))}
+          <div className="ui-stagger mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard as="section" label="Needs action" value={needsReview} hint="Responsible submissions and active assignments" icon="inbox" tone="pending" loading={loading && submissions.length === 0} />
+            <StatCard as="section" label="Completed" value={completed} hint="Finished submissions" icon="file-check" tone="approved" loading={loading && submissions.length === 0} />
+            <StatCard as="section" label="In office history" value={submissions.length} hint="Current and previously routed documents" icon="archive" tone="review" loading={loading && submissions.length === 0} />
           </div>
 
           <section className="rounded-2xl border border-warm-border bg-card p-5 max-md:px-3.5">
@@ -361,15 +357,16 @@ export default function OfficeDashboard({
                   type="button"
                   onClick={() => void fetchSubmissions()}
                   disabled={loading}
-                  className="h-10 rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50"
+                  className="inline-flex h-10 items-center gap-2 rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50"
                 >
+                  <Icon name="refresh" size={14} className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
                   {loading ? 'Refreshing...' : 'Refresh'}
                 </button>
                 <Link
                   href={officeQueuePath}
-                  className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
+                  className="group inline-flex h-10 items-center justify-center gap-2 rounded-full bg-clay px-4 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
                 >
-                  File management <span className="ml-2" aria-hidden="true">→</span>
+                  File management <Icon name="arrow-right" size={14} className="transition-transform duration-200 group-hover:translate-x-0.5" />
                 </Link>
               </div>
             </div>
@@ -381,20 +378,23 @@ export default function OfficeDashboard({
                   Retry
                 </button>
               </div>
-            ) : loading ? (
-              <p className="rounded-xl bg-sidebar px-4 py-6 text-xs text-muted-text">Loading your office overview...</p>
+            ) : loading && submissions.length === 0 ? (
+              <SkeletonRows rows={2} label="Loading your office overview…" />
             ) : recentActionItems.length === 0 ? (
-              <div className="rounded-xl bg-sidebar px-4 py-8 text-center">
+              <div className="ui-fade-up rounded-xl bg-sidebar px-4 py-8 text-center">
+                <span className="ui-float mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-approved-bg text-approved-text">
+                  <Icon name="check" size={22} />
+                </span>
                 <p className="font-serif text-xl text-warm-text">You’re all caught up</p>
                 <p className="mt-2 text-xs text-muted-text">There are no submissions or assignments requiring action right now.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="ui-stagger space-y-3">
                 {recentActionItems.map((submission) => {
                   return (
                     <article
                       key={submission.id}
-                      className="flex flex-col gap-3 rounded-xl border border-warm-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                      className="ui-lift flex flex-col gap-3 rounded-xl border border-warm-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -469,9 +469,7 @@ export default function OfficeDashboard({
               </button>
             </div>
           ) : loading ? (
-            <div className="rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-              Loading files...
-            </div>
+            <SkeletonRows rows={4} label="Loading files…" />
           ) : (
             <>
               <div className="mb-4 flex items-center gap-3">
@@ -486,15 +484,15 @@ export default function OfficeDashboard({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="ui-stagger space-y-3">
                   {fileListSubmissions.map((submission) => (
                     <article
                       key={submission.id}
-                      className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                      className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 ui-lift hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
                     >
                       <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
                         <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
-                          <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                          <Icon name="file" size={18} className="transition-transform duration-300 group-hover:-translate-y-0.5" />
                           <span className="mt-1 text-[8px] font-semibold uppercase">{submission.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
                         </div>
                         <div className="min-w-0 flex-1">

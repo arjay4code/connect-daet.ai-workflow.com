@@ -1,9 +1,12 @@
 // src/app/(dashboard)/workflow/admin/user_management/page.tsx
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -160,7 +163,7 @@ export default function UserManagementPage() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('User registry fetch failed:', error.message);
+      logClientError('User registry fetch failed:', error.message);
       setUserFetchError(`Could not load the user registry: ${error.message}`);
       setLoading(false);
       return;
@@ -188,7 +191,7 @@ export default function UserManagementPage() {
       const message = verificationError instanceof Error
         ? verificationError.message
         : 'Could not load account verification statuses.';
-      console.error('Account verification status refresh failed:', message);
+      logClientError('Account verification status refresh failed:', message);
       setUsers(profiles.map((profile) => ({ ...profile, verificationStatus: 'unknown' })));
       setUsersError(message);
     }
@@ -248,7 +251,7 @@ export default function UserManagementPage() {
       await fetchUsers();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not create the official account.';
-      console.error('Official account creation failed:', message);
+      logClientError('Official account creation failed:', message);
       setAccountCreationStatus({ type: 'error', message });
     } finally {
       setCreatingAccount(false);
@@ -261,7 +264,7 @@ export default function UserManagementPage() {
       await navigator.clipboard.writeText(invitationLink.url);
       setLinkActionStatus('Invitation link copied. Paste it into your email to the official.');
     } catch (error) {
-      console.error('Could not copy the official invitation link:', error);
+      logClientError('Could not copy the official invitation link:', error);
       setLinkActionStatus('Copy failed. Select and copy the invitation link from the field above.');
     }
   };
@@ -292,7 +295,7 @@ export default function UserManagementPage() {
         return;
       }
     } catch (error) {
-      console.error('User deletion request failed:', error);
+      logClientError('User deletion request failed:', error);
       setDeleteError(error instanceof Error ? error.message : 'Could not reach the server to delete this user. Please try again.');
     } finally {
       setUpdating(null);
@@ -333,7 +336,7 @@ export default function UserManagementPage() {
       if (result.warning) setAccountStatusError(result.warning);
     } catch (error) {
       const message = error instanceof Error ? error.message : `Could not ${action} this account.`;
-      console.error('Account status update failed:', message);
+      logClientError('Account status update failed:', message);
       setAccountStatusError(message);
     } finally {
       setUpdating(null);
@@ -381,22 +384,25 @@ export default function UserManagementPage() {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 max-md:mb-5">
-        <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
-        </p>
-        <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>User Registry</h1>
-        <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-          Control who can submit, review and administer files. Total users: <span className="text-warm-text">{users.length}</span>
-        </p>
-      </div>
+      <PageHero
+        greet={false}
+        eyebrow="Admin workspace"
+        icon="users"
+        title="User Registry"
+        description={<>Control who can submit, review and administer files. Total users: <span className="text-warm-text">{users.length}</span></>}
+      />
 
-      <section className="mb-6 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-        <div className="mb-4">
-          <h2 className="text-sm font-semibold text-warm-text">Create an account and assign a role</h2>
-          <p className="mt-1 text-[11px] text-muted-text">
-            Create an account for an official and assign their dashboard role. The recipient verifies the invitation link and sets their password before signing in.
-          </p>
+      <section className="ui-fade-up mb-6 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clay-soft text-clay">
+            <Icon name="user-check" size={19} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-warm-text">Create an account and assign a role</h2>
+            <p className="mt-1 text-[11px] text-muted-text">
+              Create an account for an official and assign their dashboard role. The recipient verifies the invitation link and sets their password before signing in.
+            </p>
+          </div>
         </div>
         <form onSubmit={createOfficialAccount} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -548,8 +554,9 @@ export default function UserManagementPage() {
             <button
               type="submit"
               disabled={creatingAccount}
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50"
             >
+              <Icon name={creatingAccount ? 'refresh' : 'plus'} size={15} className={creatingAccount ? 'animate-spin motion-reduce:animate-none' : ''} />
               {creatingAccount ? 'Sending invitation...' : 'Create official account'}
             </button>
           </div>
@@ -567,8 +574,11 @@ export default function UserManagementPage() {
           </p>
         )}
         {invitationLink && (
-          <div className="mt-4 rounded-xl border border-warm-border bg-sidebar p-4">
-            <p className="text-xs font-semibold text-warm-text">Account created — send the verification link</p>
+          <div className="ui-fade-up mt-4 rounded-xl border border-warm-border bg-sidebar p-4">
+            <p className="flex items-center gap-2 text-xs font-semibold text-warm-text">
+              <span className="ui-pop flex h-6 w-6 items-center justify-center rounded-full bg-approved-bg text-approved-text"><Icon name="check" size={13} strokeWidth={2.4} /></span>
+              Account created — send the verification link
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
               This one-time link is for {invitationLink.fullName} ({invitationLink.email}), assigned to {capitalize(invitationLink.role)}.
               They must open it, verify the invitation, and set a password before accessing their dashboard.
@@ -585,9 +595,9 @@ export default function UserManagementPage() {
               <button
                 type="button"
                 onClick={() => void copyInvitationLink()}
-                className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-card"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-card"
               >
-                Copy link
+                <Icon name="paperclip" size={14} /> Copy link
               </button>
               <a
                 href={`https://mail.google.com/mail/?${new URLSearchParams({
@@ -599,9 +609,9 @@ export default function UserManagementPage() {
                 }).toString()}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-11 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
               >
-                Compose email in Gmail
+                <Icon name="send" size={14} /> Compose email in Gmail
               </a>
             </div>
             {linkActionStatus && <p role="status" className="mt-2 text-[11px] text-muted-text">{linkActionStatus}</p>}
@@ -644,13 +654,14 @@ export default function UserManagementPage() {
       {/* Toolbar */}
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-xl lg:flex-1">
+          <Icon name="search" size={16} className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted-text" />
           <input
             type="text"
             placeholder="Search by email..."
             aria-label="Search by email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-12 w-full rounded-full border border-warm-border bg-card px-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+            className="h-12 w-full rounded-full border border-warm-border bg-card pl-12 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
           />
         </div>
 
@@ -690,15 +701,16 @@ export default function UserManagementPage() {
 
       {/* List */}
       {loading ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading users...
-        </div>
+        <SkeletonRows rows={4} label="Loading users…" />
       ) : userFetchError ? (
         <div className="rounded-2xl border border-rejected-bg bg-card px-5 py-8 text-center text-xs text-rejected-text">
           The registry could not be loaded. Resolve the error above and try again.
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+        <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
+          <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+            <Icon name="search" size={24} />
+          </span>
           <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
           <p className="mt-2 text-xs text-muted-text">No users match your search or filter.</p>
           {(search || roleFilter !== 'all') && (
@@ -711,14 +723,14 @@ export default function UserManagementPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="ui-stagger space-y-3">
           {filtered.map((user) => (
             <article
               key={user.id}
-              className="group flex flex-col gap-5 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:flex-row sm:items-center sm:justify-between max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+              className="ui-lift group flex flex-col gap-5 rounded-2xl border border-warm-border bg-card px-5 py-5 hover:border-clay-border sm:flex-row sm:items-center sm:justify-between max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
             >
               <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sidebar text-lg font-semibold uppercase text-muted-text" aria-hidden="true">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sidebar text-lg font-semibold uppercase text-muted-text transition-colors duration-200 group-hover:bg-clay-soft group-hover:text-clay" aria-hidden="true">
                   {user.email?.charAt(0) || '?'}
                 </div>
                 <div className="min-w-0">
@@ -750,14 +762,16 @@ export default function UserManagementPage() {
                   <>
                     <button
                       onClick={() => void updateAccountStatus(user)}
-                      className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:h-11 max-md:w-full"
                     >
+                      <Icon name={user.is_active ? 'user-x' : 'user-check'} size={14} />
                       {user.is_active ? 'Disable account' : 'Enable account'}
                     </button>
                     <button
                       onClick={() => void deleteUser(user.id, user.email)}
-                      className="inline-flex h-10 items-center justify-center rounded-full border border-rejected-bg px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/50 max-md:h-11 max-md:w-full"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-rejected-bg px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/50 max-md:h-11 max-md:w-full"
                     >
+                      <Icon name="x" size={14} />
                       Remove account
                     </button>
                   </>

@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import FilePreview from '@/components/FilePreview';
@@ -15,6 +16,7 @@ import {
 } from '@/lib/workflow/offices';
 import { getSupportingDocumentSuggestions } from '@/lib/workflow/supporting-document-suggestions';
 import { useRouter } from 'next/navigation';
+import Icon from '@/components/ui/Icon';
 
 type UploadMessage = {
   text: string;
@@ -189,7 +191,7 @@ export default function UploadPage() {
         ? { text: 'Duplicate supporting documents are not allowed. The duplicate file was not added.', type: 'error' }
         : null);
     } catch (error) {
-      console.error('Supporting document duplicate check failed:', error);
+      logClientError('Supporting document duplicate check failed:', error);
       setMessage({
         text: error instanceof Error ? error.message : 'Could not check the selected supporting documents.',
         type: 'error',
@@ -366,25 +368,34 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-2xl border border-warm-border bg-card p-5 shadow-sm sm:p-8">
-      <header className="mb-6 flex flex-col gap-4 border-b border-warm-border pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-clay">
-            Document intake
-          </p>
-          <h1 className="text-2xl font-bold leading-tight text-warm-text sm:text-[28px]">
-            Submit a New Document
-          </h1>
-          <p className="mt-2 text-xs text-muted-text">
-            Provide the request details and upload the document for review.
-          </p>
+    <div className="ui-fade-up relative mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-warm-border bg-card p-5 shadow-sm sm:p-8">
+      <svg aria-hidden="true" className="ui-float pointer-events-none absolute -right-12 -top-16 h-52 w-52" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="78" fill="none" className="stroke-clay-soft" strokeWidth="26" />
+        <circle cx="100" cy="100" r="30" className="fill-promo-panel" />
+      </svg>
+      <header className="relative mb-6 flex flex-col gap-4 border-b border-warm-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-4">
+          <span className="ui-pop flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-clay text-white shadow-[0_8px_18px_-10px_var(--workflow-primary)]">
+            <Icon name="file-plus" size={22} />
+          </span>
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-clay">
+              Document intake
+            </p>
+            <h1 className="text-2xl font-bold leading-tight text-warm-text sm:text-[28px]">
+              Submit a New Document
+            </h1>
+            <p className="mt-2 text-xs text-muted-text">
+              Provide the request details and upload the document for review.
+            </p>
+          </div>
         </div>
         <button
           type="button"
           onClick={() => router.push('/workflow/user')}
-          className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar"
         >
-          Cancel
+          <Icon name="x" size={14} /> Cancel
         </button>
       </header>
 
@@ -517,9 +528,9 @@ export default function UploadPage() {
               selectMainFile(event.dataTransfer.files[0]);
             }
           }}
-          className={`flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 py-7 text-center transition-colors sm:min-h-48 ${
+          className={`group flex min-h-44 flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 py-7 text-center transition-all duration-300 sm:min-h-48 ${
             isDragging
-              ? 'border-clay bg-clay-soft'
+              ? 'scale-[1.01] border-clay bg-clay-soft'
               : file
                 ? 'border-approved-bg bg-approved-bg/20'
                 : 'border-warm-border bg-sidebar/60'
@@ -535,11 +546,8 @@ export default function UploadPage() {
                   className="mb-3 max-h-24 max-w-full rounded-lg border border-warm-border bg-card object-contain"
                 />
               ) : (
-                <span
-                  className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-card text-lg text-clay"
-                  aria-hidden="true"
-                >
-                  ▤
+                <span className="ui-pop mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-card text-approved-text">
+                  <Icon name="file-check" size={20} />
                 </span>
               )}
               <p className="max-w-full break-all text-sm font-semibold text-warm-text">
@@ -552,9 +560,9 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={() => setShowPreview(true)}
-                  className="inline-flex h-9 items-center rounded-full border border-warm-border bg-card px-4 text-[11px] font-medium text-warm-text hover:bg-sidebar"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-warm-border bg-card px-4 text-[11px] font-medium text-warm-text hover:bg-sidebar"
                 >
-                  Preview
+                  <Icon name="eye" size={13} /> Preview
                 </button>
                 <button
                   type="button"
@@ -578,10 +586,9 @@ export default function UploadPage() {
           ) : (
             <>
               <span
-                className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-clay-soft text-xl text-clay"
-                aria-hidden="true"
+                className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-clay-soft text-clay transition-transform duration-300 group-hover:-translate-y-1 ${isDragging ? '-translate-y-1.5 scale-110' : ''}`}
               >
-                ↑
+                <Icon name="file-plus" size={22} />
               </span>
               <p className="text-sm font-semibold text-warm-text">
                 Drag and drop your document here
@@ -683,11 +690,13 @@ export default function UploadPage() {
             'Checking supporting documents...'
           ) : uploading ? (
             <>
-              <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              <Icon name="refresh" size={15} className="animate-spin motion-reduce:animate-none" />
               Submitting...
             </>
           ) : (
-            'Submit document →'
+            <>
+              <Icon name="send" size={15} /> Submit document
+            </>
           )}
         </button>
       </footer>

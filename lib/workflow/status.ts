@@ -7,7 +7,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_mayor: 'In Process',
   changes_requested: 'Closed — Changes Requested',
   returned_for_requirements: 'Closed — Changes Requested',
-  closed_by_submitter: 'Closed by submitter',
+  closed_by_submitter: 'Closed by requestee',
   returned: 'Returned',
   completed: 'Completed',
   approved: 'Approved',

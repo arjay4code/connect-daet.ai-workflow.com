@@ -1,11 +1,13 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { createClient } from '@/lib/supabase/client';
 import { isOfficeRole, OFFICE_CONFIG, type OfficeRole } from '@/lib/workflow/offices';
 import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
-import { useWorkflowAccount } from '@/lib/workflow/role-context';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
 
 interface RetrievalDetails {
   submission_id: string;
@@ -136,7 +138,7 @@ export default function DocumentRetrievalPage() {
     try {
       await scanner.stop();
     } catch (error) {
-      console.error('Could not stop the retrieval QR scanner:', error);
+      logClientError('Could not stop the retrieval QR scanner:', error);
       setErrorMessage('The camera could not be stopped. Close the scanner and try again.');
     } finally {
       setCameraRunning(false);
@@ -144,24 +146,46 @@ export default function DocumentRetrievalPage() {
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    setOfficeRole(null);
-    if (!userId) {
-      setErrorMessage('Sign in with an authorized municipal officer account to use document retrieval.');
-    } else if (isOfficeRole(role)) {
-      setOfficeRole(role);
-      setOfficerName(fullName || '');
-      setErrorMessage('');
-    } else {
-      setErrorMessage('This feature is only available to authorized municipal office staff.');
-    }
-    setCheckingAccess(false);
+    let active = true;
+    const checkOfficerAccess = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        logClientError('Retrieval officer authentication failed:', userError.message);
+        if (active) setErrorMessage('Could not verify your account. Please sign in again.');
+        if (active) setCheckingAccess(false);
+        return;
+      }
+      if (!user) {
+        if (active) setErrorMessage('Sign in with an authorized municipal officer account to use document retrieval.');
+        if (active) setCheckingAccess(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, full_name')
+        .eq('id', user.id)
+        .single();
+      if (profileError) {
+        logClientError('Retrieval officer profile load failed:', profileError.message);
+        if (active) setErrorMessage('Could not verify your municipal office role.');
+      } else if (isOfficeRole(profile?.role ?? null)) {
+        if (active) {
+          setOfficeRole(profile.role);
+          setOfficerName(profile.full_name || '');
+          setErrorMessage('');
+        }
+      } else if (active) {
+        setErrorMessage('This feature is only available to authorized municipal office staff.');
+      }
+      if (active) setCheckingAccess(false);
+    };
 
     return () => {
       const scanner = scannerRef.current;
       if (scanner?.isScanning) {
         void scanner.stop().catch((error: unknown) => {
-          console.error('Could not stop the retrieval QR scanner during cleanup:', error);
+          logClientError('Could not stop the retrieval QR scanner during cleanup:', error);
         });
       }
     };
@@ -196,15 +220,8 @@ export default function DocumentRetrievalPage() {
           search_tracking_number: lookupValue,
         });
     if (error) {
-      const isAssignedToDifferentOffice = error.message.includes(
-        'No active retrieval record with this tracking number is assigned to your office'
-      );
-      if (!isAssignedToDifferentOffice) {
-        console.error('Document retrieval lookup failed:', error.message);
-      }
-      setErrorMessage(isAssignedToDifferentOffice
-        ? 'This retrieval is not assigned to your office. Check the tracking number or use a QR code'
-        : error.message || 'Could not retrieve this request. Verify the tracking number and office assignment.');
+      logClientError('Retrieval QR lookup failed:', error.message);
+      setErrorMessage(error.message || 'Could not retrieve this request. Verify the QR code and office assignment.');
       return;
     }
 
@@ -286,14 +303,14 @@ export default function DocumentRetrievalPage() {
       );
       setCameraRunning(true);
     } catch (error) {
-      console.error('Retrieval QR camera could not start:', error);
+      logClientError('Retrieval QR camera could not start:', error);
       setErrorMessage(error instanceof Error
         ? `Could not start the camera: ${error.message}`
         : 'Could not start the camera. Check camera permission and try again.');
       const scanner = scannerRef.current;
       if (scanner?.isScanning) {
         await scanner.stop().catch((stopError: unknown) => {
-          console.error('Could not stop the failed camera scanner:', stopError);
+          logClientError('Could not stop the failed camera scanner:', stopError);
         });
       }
     } finally {
@@ -333,9 +350,8 @@ export default function DocumentRetrievalPage() {
       } : current);
       setMessage('Physical storage location saved.');
     } catch (error) {
-      const message = getErrorMessage(error, 'Could not save the storage location.');
-      console.warn('Physical document location update failed:', message);
-      setErrorMessage(message);
+      logClientError('Physical document location update failed:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Could not save the storage location.');
     } finally {
       setSavingLocation(false);
     }
@@ -381,9 +397,8 @@ export default function DocumentRetrievalPage() {
       setIdentityVerified(false);
       setLocationEditEnabled(false);
     } catch (error) {
-      const message = getErrorMessage(error, 'Could not record this document release.');
-      console.warn('Document release confirmation failed:', message);
-      setErrorMessage(message);
+      logClientError('Document release confirmation failed:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Could not record this document release.');
     } finally {
       setReleasing(false);
     }
@@ -403,15 +418,14 @@ export default function DocumentRetrievalPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
-      <header>
-        <p className="mb-2 text-[11px] font-medium text-muted-text">Authorized officer workspace</p>
-        <h1 className="font-serif text-[32px] leading-tight text-warm-text max-md:text-[26px]">
-          Document Retrieval
-        </h1>
-        <p className="mt-2 text-xs text-muted-text">
-          Scan a requester’s retrieval QR code or enter the tracking number to locate the request and record handover.
-        </p>
-      </header>
+      <PageHero
+        greet={false}
+        className="mb-0"
+        eyebrow="Authorized officer workspace"
+        icon="qr"
+        title="Scan QR Code"
+        description="Scan a requester’s retrieval code to locate and record handover of the physical document."
+      />
 
       {!officeRole ? (
         <p role="alert" className="rounded-2xl border border-rejected-bg bg-rejected-bg/50 p-4 text-xs text-rejected-text">
@@ -420,7 +434,10 @@ export default function DocumentRetrievalPage() {
       ) : (
         <>
           <section className="rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-            <p className="mb-4 text-xs font-semibold text-warm-text">{OFFICE_CONFIG[officeRole].label}</p>
+            <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-warm-text">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-clay-soft text-clay"><Icon name="building" size={15} /></span>
+              {OFFICE_CONFIG[officeRole].label}
+            </p>
             <div className="grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(16rem,0.7fr)]">
               <div>
                 <div
@@ -433,17 +450,18 @@ export default function DocumentRetrievalPage() {
                       type="button"
                       onClick={() => void startCamera()}
                       disabled={cameraStarting}
-                      className="inline-flex h-10 flex-1 items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:opacity-50"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-clay px-4 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:opacity-50"
                     >
+                      <Icon name={cameraStarting ? 'refresh' : 'scan'} size={15} className={cameraStarting ? 'animate-spin motion-reduce:animate-none' : ''} />
                       {cameraStarting ? 'Starting camera...' : 'Start camera scanner'}
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => void stopCamera()}
-                      className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
                     >
-                      Stop camera
+                      <Icon name="x" size={15} /> Stop camera
                     </button>
                   )}
                 </div>
@@ -468,9 +486,9 @@ export default function DocumentRetrievalPage() {
                 <button
                   type="submit"
                   disabled={!manualCode.trim()}
-                  className="h-10 w-full rounded-full border border-warm-border text-xs font-semibold text-warm-text disabled:opacity-50"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-warm-border text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
                 >
-                  Retrieve request
+                  <Icon name="search" size={14} /> Retrieve request
                 </button>
                 <p className="text-[10px] leading-relaxed text-muted-text">
                   Request details are returned only to the assigned office. A retrieval record must be active for the tracking number.
@@ -480,18 +498,20 @@ export default function DocumentRetrievalPage() {
           </section>
 
           {errorMessage && (
-            <p role="alert" className="rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
-              {errorMessage}
+            <p role="alert" className="ui-fade-up flex items-start gap-2 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
+              <Icon name="alert" size={15} className="mt-px shrink-0" />
+              <span>{errorMessage}</span>
             </p>
           )}
           {message && (
-            <p role="status" className="rounded-xl border border-approved-bg bg-approved-bg/50 px-4 py-3 text-xs text-approved-text">
-              {message}
+            <p role="status" className="ui-fade-up flex items-start gap-2 rounded-xl border border-approved-bg bg-approved-bg/50 px-4 py-3 text-xs text-approved-text">
+              <Icon name="check" size={15} className="mt-px shrink-0" />
+              <span>{message}</span>
             </p>
           )}
 
           {details && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
+            <div className="ui-stagger grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
               <section className="space-y-4 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-warm-border pb-4">
                   <div>
@@ -502,9 +522,9 @@ export default function DocumentRetrievalPage() {
                       href={`/api/workflow/files/${encodeURIComponent(details.submission_id)}?redirect=1`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 inline-flex h-10 items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white hover:bg-warm-text"
+                      className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-clay px-4 text-xs font-semibold text-white hover:bg-warm-text"
                     >
-                      Open digital document
+                      <Icon name="file" size={15} /> Open digital document
                     </a>
                   </div>
                   <span className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
@@ -524,7 +544,7 @@ export default function DocumentRetrievalPage() {
                 </dl>
 
                 <div className="rounded-2xl border-2 border-clay/40 bg-clay-soft p-4">
-                  <h3 className="text-xs font-bold text-clay">Physical document storage location</h3>
+                  <h3 className="flex items-center gap-2 text-xs font-bold text-clay"><Icon name="map-pin" size={15} /> Physical document storage location</h3>
                   <p className="mt-1 text-[10px] text-muted-text">{officeLabel}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {[
@@ -542,13 +562,14 @@ export default function DocumentRetrievalPage() {
               </section>
 
               <section className="space-y-4 rounded-2xl border border-warm-border bg-card p-5 max-md:p-3.5">
-                <h2 className="text-sm font-semibold text-warm-text">Storage and handover</h2>
-                <div className={`rounded-xl px-3 py-3 text-xs ${
-                  hasCompleteLocation && !locationNeedsSaving
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-warm-text"><Icon name="archive" size={16} className="text-clay" /> Storage and handover</h2>
+                <div className={`flex items-center gap-2 rounded-xl px-3 py-3 text-xs ${
+                  details.received_at
                     ? 'bg-approved-bg text-approved-text'
                     : 'bg-pending-bg text-pending-text'
                 }`}>
-                  {hasCompleteLocation && !locationNeedsSaving
+                  <Icon name={details.received_at ? 'check' : 'clock'} size={15} className="shrink-0" />
+                  {details.received_at
                     ? `Physical copy stored ${formatDate(details.received_at)}`
                     : locationNeedsSaving && hasCompleteLocationInput
                       ? 'Location entered but not saved. Select Save to record it.'
@@ -609,14 +630,11 @@ export default function DocumentRetrievalPage() {
                   <button
                     type="button"
                     onClick={() => void saveLocation()}
-                    disabled={savingLocation || storageLocationLocked}
-                    className="h-10 w-full rounded-full border border-warm-border text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={savingLocation}
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-warm-border text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50"
                   >
-                    {savingLocation
-                      ? 'Saving location...'
-                      : canMoveStoredLocation && locationEditEnabled
-                        ? 'Save new storage location'
-                        : 'Save physical location'}
+                    <Icon name={savingLocation ? 'refresh' : 'map-pin'} size={14} className={savingLocation ? 'animate-spin motion-reduce:animate-none' : ''} />
+                    {savingLocation ? 'Saving location...' : 'Save physical location'}
                   </button>
                 </fieldset>
 
@@ -634,14 +652,11 @@ export default function DocumentRetrievalPage() {
                     <button
                       type="button"
                       onClick={() => void confirmRelease()}
-                      disabled={!identityVerified || identityVerificationDisabled}
-                      className="h-11 w-full rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!identityVerified || !details.received_at || releasing}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-clay px-4 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {releasing
-                        ? 'Recording handover...'
-                        : details.released_at
-                          ? 'Handover already recorded'
-                          : 'Confirm copy handover'}
+                      <Icon name={releasing ? 'refresh' : 'file-check'} size={15} className={releasing ? 'animate-spin motion-reduce:animate-none' : ''} />
+                      {releasing ? 'Recording handover...' : 'Confirm copy handover'}
                     </button>
                   </div>
               </section>

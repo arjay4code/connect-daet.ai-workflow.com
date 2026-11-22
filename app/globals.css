@@ -65,6 +65,122 @@ body {
   font-family: var(--font-inter), sans-serif;
 }
 
+/* ─── Motion ────────────────────────────────────────────────────────────────
+   Small, shared animation utilities. Colours always come from the theme
+   tokens above; everything is disabled for prefers-reduced-motion. */
+
+@keyframes ui-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ui-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes ui-pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--workflow-primary) 40%, transparent); }
+  70% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--workflow-primary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--workflow-primary) 0%, transparent); }
+}
+
+@keyframes ui-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes ui-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(-6px, 6px, 0) rotate(8deg); }
+}
+
+@keyframes ui-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Fade up once on mount. */
+.ui-fade-up {
+  animation: ui-fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Children fade up one after another (lists, card grids). */
+.ui-stagger > * {
+  animation: ui-fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.ui-stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.ui-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.ui-stagger > *:nth-child(3) { animation-delay: 0.13s; }
+.ui-stagger > *:nth-child(4) { animation-delay: 0.18s; }
+.ui-stagger > *:nth-child(5) { animation-delay: 0.23s; }
+.ui-stagger > *:nth-child(6) { animation-delay: 0.28s; }
+.ui-stagger > *:nth-child(7) { animation-delay: 0.33s; }
+.ui-stagger > *:nth-child(n + 8) { animation-delay: 0.38s; }
+
+/* Gentle lift on hover for cards. */
+.ui-lift {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.ui-lift:hover {
+  transform: translateY(-3px);
+  border-color: var(--workflow-primary-border);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+/* Loading placeholder shimmer in the warm neutrals. */
+.ui-skeleton {
+  background: linear-gradient(90deg, #f1eee6 25%, #faf9f6 50%, #f1eee6 75%);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.4s ease-in-out infinite;
+}
+
+/* "Needs attention" pulse in the accent colour. */
+.ui-pulse-ring {
+  animation: ui-pulse-ring 2s ease-out infinite;
+}
+
+/* Progress connector that draws itself left to right. */
+.ui-grow-x {
+  transform-origin: left center;
+  animation: ui-grow-x 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Slow drift for decorative shapes. */
+.ui-float {
+  animation: ui-float 12s ease-in-out infinite;
+}
+
+/* Small pop-in for icons and badges. */
+.ui-pop {
+  animation: ui-pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Pop in first, then keep pulsing (current step in the route tracker). */
+.ui-pop.ui-pulse-ring {
+  animation:
+    ui-pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards,
+    ui-pulse-ring 2s ease-out 0.6s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-fade-up,
+  .ui-stagger > *,
+  .ui-skeleton,
+  .ui-pulse-ring,
+  .ui-grow-x,
+  .ui-float,
+  .ui-pop {
+    animation: none !important;
+  }
+  .ui-lift,
+  .ui-lift:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
 @media print {
   body * {
     visibility: hidden !important;

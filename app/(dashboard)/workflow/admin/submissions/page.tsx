@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -20,6 +21,9 @@ import {
 } from '@/lib/workflow/file-browser';
 import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflow/status';
 import type { Submission } from '@/hooks/useSubmissions';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -92,7 +96,7 @@ export default function SubmissionsPage() {
     try {
       await downloadFile(await getFileUrl(supabase, previewFile), previewFile.file_name);
     } catch (error) {
-      console.error('Admin document download failed:', error);
+      logClientError('Admin document download failed:', error);
       setPreviewError(error instanceof Error ? error.message : 'Could not download this document.');
     }
   };
@@ -100,26 +104,26 @@ export default function SubmissionsPage() {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 max-md:mb-5">
-        <div>
-          <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-clay" /> Admin workspace
-          </p>
-          <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
-          <p className="mt-2 text-xs text-muted-text max-md:mt-1.5">
-            Search and review submissions from across the system. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.
-          </p>
-        </div>
-        <Link
-          href="/workflow/admin/archive"
-          className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
-        >
-          Archive
-        </Link>
-      </div>
+      <PageHero
+        greet={false}
+        eyebrow="Admin workspace"
+        icon="files"
+        title="Files."
+        description={<>Search and review submissions from across the system. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.</>}
+        actions={
+          <Link
+            href="/workflow/admin/archive"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar"
+          >
+            <Icon name="archive" size={15} /> Archive
+          </Link>
+        }
+      />
 
       {/* Filters */}
       <div className="mb-4 space-y-3">
+        <div className="relative">
+        <Icon name="search" size={16} className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted-text" />
         <input
           type="search"
           value={searchQuery}
@@ -129,8 +133,9 @@ export default function SubmissionsPage() {
           }}
           aria-label="Search files by name, tracking number, or requester email"
           placeholder="Find a file by name, tracking number, or requester..."
-          className="h-12 w-full rounded-full border border-warm-border bg-card px-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+          className="h-12 w-full rounded-full border border-warm-border bg-card pl-12 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
         />
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <FileBrowserFilterSelect
@@ -158,25 +163,26 @@ export default function SubmissionsPage() {
 
       {/* List */}
       {loading ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading files...
-        </div>
+        <SkeletonRows rows={4} label="Loading files…" />
       ) : filteredSubmissions.length === 0 ? (
-        <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+        <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
+          <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+            <Icon name="search" size={24} />
+          </span>
           <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
           <p className="mt-2 text-xs text-muted-text">No files match your search or filters.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="ui-stagger space-y-3">
           {paginatedSubmissions.items.map((sub) => {
             return (
               <article
                 key={sub.id}
-                className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                className="ui-lift group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
               >
                 <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
-                  <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
-                    <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                  <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text transition-colors duration-200 group-hover:bg-clay-soft group-hover:text-clay">
+                    <Icon name="file" size={18} />
                     <span className="mt-1 text-[8px] font-semibold uppercase">{sub.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
                   </div>
                   <div className="min-w-0 flex-1">
@@ -222,15 +228,13 @@ export default function SubmissionsPage() {
                       title="Quick preview"
                       aria-label={`Preview ${sub.file_name}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                      </svg>
+                      <Icon name="eye" size={18} />
                     </button>
                     <Link
                       href={`/workflow/admin/submissions/${sub.id}`}
-                      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
+                      className="group/view inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
                     >
-                      View document <span aria-hidden="true">→</span>
+                      View document <Icon name="arrow-right" size={14} className="transition-transform duration-200 group-hover/view:translate-x-0.5" />
                     </Link>
                     <AdminDeleteSubmissionButton
                       submissionId={sub.id}

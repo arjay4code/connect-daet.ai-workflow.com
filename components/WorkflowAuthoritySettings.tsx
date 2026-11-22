@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -32,7 +33,7 @@ export default function WorkflowAuthoritySettings() {
       .order('document_type');
 
     if (loadError) {
-      console.error('Final decision authority load failed:', loadError.message);
+      logClientError('Final decision authority load failed:', loadError.message);
       setError('Could not load final decision authority settings.');
     } else {
       setAuthorities((data ?? []) as Authority[]);
@@ -60,7 +61,7 @@ export default function WorkflowAuthoritySettings() {
     );
 
     if (saveError) {
-      console.error('Final decision authority save failed:', saveError.message);
+      logClientError('Final decision authority save failed:', saveError.message);
       setError(saveError.message || 'Could not save final decision authority.');
     } else {
       setSuccess('Final decision authority saved.');
@@ -77,7 +78,7 @@ export default function WorkflowAuthoritySettings() {
       { authority_id: authority.id }
     );
     if (removeError) {
-      console.error('Final decision authority removal failed:', removeError.message);
+      logClientError('Final decision authority removal failed:', removeError.message);
       setError(removeError.message || 'Could not remove final decision authority.');
       return;
     }

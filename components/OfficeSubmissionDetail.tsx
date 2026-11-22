@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -113,10 +114,10 @@ interface Submission extends PreviewableFile {
   closure_file_size?: number | null;
 }
 
-// Readable role names for activity entries (submitter and admin are not offices).
+// Readable role names for activity entries (requestee and admin are not offices).
 const getActorRoleLabel = (actorRole: string | null | undefined) => {
   if (!actorRole) return null;
-  if (actorRole === 'submitter') return 'Submitter';
+  if (actorRole === 'submitter') return 'Requestee';
   if (actorRole === 'system_admin') return 'System Administrator';
   return getOfficeLabel(actorRole);
 };
@@ -196,7 +197,7 @@ const getStatusStyles = (status: string) => {
 
 const getActionLabel = (type: string) => {
   switch (type) {
-    case 'DESTINATION_SELECTED': return 'Destination selected by submitter';
+    case 'DESTINATION_SELECTED': return 'Destination selected by requestee';
     case 'SUBMISSION_REDIRECTED': return 'Submission redirected';
     case 'SUBMISSION_RECEIVED': return 'Submission received by office';
     case 'SUBMISSION_FORWARDED': return 'Recommendation requested';
@@ -204,14 +205,14 @@ const getActionLabel = (type: string) => {
     case 'ASSIGNMENT_RETURNED': return 'Office assignment returned';
     case 'ASSIGNMENT_WITHDRAWN': return 'Office assignment withdrawn';
     case 'CHANGES_REQUESTED': return 'Changes requested';
-    case 'CHANGES_RESPONDED': return 'Submitter responded to changes';
-    case 'RETURNED_TO_SUBMITTER': return 'Returned to submitter for redirection';
+    case 'CHANGES_RESPONDED': return 'Requestee responded to changes';
+    case 'RETURNED_TO_SUBMITTER': return 'Returned to requestee for redirection';
     case 'SUBMISSION_WITHDRAWN': return 'Submission withdrawn';
     case 'SUBMISSION_CLOSED': return 'Submission completed';
     case 'SUBMISSION_APPROVED': return 'Submission approved';
     case 'SUBMISSION_REJECTED': return 'Submission rejected';
-    case 'SUBMISSION_REOPENED': return 'Submitter resubmitted a revision';
-    case 'SUBMISSION_PERMANENTLY_CLOSED': return 'Submitter permanently closed the submission';
+    case 'SUBMISSION_REOPENED': return 'Requestee resubmitted a revision';
+    case 'SUBMISSION_PERMANENTLY_CLOSED': return 'Requestee permanently closed the submission';
     case 'FILE_VERSION_ADDED': return 'Document version added';
     case 'STAGE_1_AUTHORIZED': return 'Stage 1 approved';
     case 'STAGE_1_REJECTED': return 'Stage 1 rejected';
@@ -229,8 +230,8 @@ const getActionLabel = (type: string) => {
     case 'TOURISM_OFFICER_ASSIGNMENTS_COMPLETED': return 'Additional office assignments completed';
     case 'OFFICE_FINAL_DECISION': return 'Final decision by authorized office';
     case 'ROUTE_PROPOSED': return 'Tourism Officer proposed office route';
-    case 'REVISED_DOCUMENT_SUBMITTED': return 'Submitter uploaded a revised document';
-    case 'REQUIREMENTS_RESUBMITTED': return 'Submitter responded to requested changes';
+    case 'REVISED_DOCUMENT_SUBMITTED': return 'Requestee uploaded a revised document';
+    case 'REQUIREMENTS_RESUBMITTED': return 'Requestee responded to requested changes';
     case 'ROUTE_REQUIREMENTS_REQUESTED': return 'Municipal office requested additional requirements';
     case 'ROUTE_RETURNED_TO_ADMIN': return 'All routed offices approved; returned to Admin';
     case 'APPROVER_REJECTED': return 'Approver rejected request';
@@ -295,7 +296,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       setRevisionHistory(detail.revisionHistory);
       setAttachments(detail.supportingFiles);
     } catch (err) {
-      console.error('Failed to load submission:', err);
+      logClientError('Failed to load submission:', err);
       setLoadError(err instanceof Error ? err.message : 'Could not load this submission.');
       setRouteStateError(true);
       setRevisionHistoryError('Could not load the file version history. Refresh this page to try again.');
@@ -345,7 +346,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       .from('workflow_uploads')
       .createSignedUrl(attachment.file_path, 300);
     if (error || !data?.signedUrl) {
-      console.error('Could not authorize attachment download:', error?.message);
+      logClientError('Could not authorize attachment download:', error?.message);
       setActionError('Could not open this supporting attachment. Please try again.');
       return;
     }
@@ -507,7 +508,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     } catch (error) {
       if (filePath) {
         const { error: cleanupError } = await supabase.storage.from('workflow_uploads').remove([filePath]);
-        if (cleanupError) console.error('Could not clean up unlinked closure file:', cleanupError.message);
+        if (cleanupError) logClientError('Could not clean up unlinked closure file:', cleanupError.message);
       }
       throw error instanceof Error ? error : new Error('Could not complete this submission.');
     } finally {
@@ -623,10 +624,10 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       value: 'request_changes',
       label: 'Request changes or information',
       groupLabel: 'Send back',
-      description: 'Close office processing while the submitter reviews the request. Any later resubmission returns to your office.',
+      description: 'Close office processing while the requestee reviews the request. Any later resubmission returns to your office.',
       tone: 'primary' as const,
       requiresMessage: true,
-      successMessage: 'Changes requested. The submitter has been notified.',
+      successMessage: 'Changes requested. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an assignment is pending'
         : pendingAssignmentReason
@@ -646,8 +647,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       groupLabel: 'Decision',
       description: 'Record the responsible office’s final approval for this submission.',
       tone: 'primary' as const,
-      confirmation: 'Approve this submission? The submitter will be notified and the decision recorded.',
-      successMessage: 'Submission approved. The submitter has been notified.',
+      confirmation: 'Approve this submission? The requestee will be notified and the decision recorded.',
+      successMessage: 'Submission approved. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an office assignment is pending'
         : pendingAssignmentReason || decisionStatusReason || decisionAuthorityReason,
@@ -659,8 +660,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       description: 'Record the responsible office’s final rejection. A reason is required.',
       tone: 'warning' as const,
       requiresMessage: true,
-      confirmation: 'Reject this submission? The submitter will be notified and the decision recorded.',
-      successMessage: 'Submission rejected. The submitter has been notified.',
+      confirmation: 'Reject this submission? The requestee will be notified and the decision recorded.',
+      successMessage: 'Submission rejected. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an office assignment is pending'
         : pendingAssignmentReason || decisionStatusReason || decisionAuthorityReason,
@@ -669,20 +670,14 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       value: 'return_to_submitter',
       label: 'Return for redirection',
       groupLabel: 'Other actions',
-      description: 'Return this submission so the submitter can choose a different destination office.',
+      description: 'Return this submission so the requestee can choose a different destination office.',
       tone: 'warning' as const,
       requiresMessage: true,
-      confirmation: 'The submission will return to the submitter so they can choose the correct office. This is not a rejection.',
-      successMessage: 'Submission returned to the submitter for redirection.',
-      unavailableReason: routeStateError
-        ? 'Could not verify whether an office assignment is pending'
-        : pendingAssignmentReason || (
-          !['submitted', 'in_process'].includes(sub.status)
-            ? 'Available only while status is Submitted or In Process'
-            : sub.status === 'in_process' && !availableOfficeActions.includes('return_to_submitter')
-              ? 'Unavailable while a forwarded office assignment is active'
-              : undefined
-        ),
+      confirmation: 'The submission will return to the requestee so they can choose the correct office. This is not a rejection.',
+      successMessage: 'Submission returned to the requestee for redirection.',
+      unavailableReason: !['submitted', 'in_process'].includes(sub.status)
+        ? 'Available only while status is Submitted or In Process'
+        : undefined,
     },
     {
       value: 'close_submission',
@@ -691,7 +686,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       groupLabel: 'Finish',
       description: 'Mark the entire submission complete. This is different from completing only an office assignment.',
       tone: 'strong' as const,
-      successMessage: 'Submission completed. The submitter has been notified.',
+      successMessage: 'Submission completed. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an assignment is pending'
         : pendingAssignmentReason
@@ -717,7 +712,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
   let initialAction = 'request_changes';
 
   if (isResponsibleOffice) {
-    recipients.push({ value: 'submitter', label: 'Submitter' });
+    recipients.push({ value: 'submitter', label: 'Requestee' });
     actionsByRecipient.submitter = responsibleOfficeActions;
     for (const officeRole of Object.keys(OFFICE_CONFIG)
       .filter(isOfficeRole)
@@ -957,7 +952,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Currently handling</p>
           {isChangesRequested ? (
-            <p className="mt-1 text-xs font-semibold text-warm-text">Closed — waiting for the submitter</p>
+            <p className="mt-1 text-xs font-semibold text-warm-text">Closed — waiting for the requestee</p>
           ) : pendingAssignments.length > 0 ? (
             <>
               <ul className="mt-1 space-y-1.5">
@@ -1037,7 +1032,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       if (error) throw new Error(error.message || 'Could not start this review.');
       await fetchDetails();
     } catch (error) {
-      console.error('Could not start office review:', error);
+      logClientError('Could not start office review:', error);
       setActionError(error instanceof Error ? error.message : 'Could not start this review.');
     } finally {
       setUpdating(false);
@@ -1116,7 +1111,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-muted-text">
               <span className="inline-flex items-center gap-1.5">
-                <Icon name="user" size={14} /> {sender?.full_name || 'Unknown submitter'}
+                <Icon name="user" size={14} /> {sender?.full_name || 'Unknown requestee'}
               </span>
               {sender?.email && (
                 <span className="inline-flex items-center gap-1.5">{sender.email}</span>
@@ -1374,7 +1369,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                       : isWithdrawn
                       ? 'This submission is withdrawn.'
                       : isReturned
-                      ? 'This submission was returned to the submitter for redirection.'
+                      ? 'This submission was returned to the requestee for redirection.'
                       : 'This submission is completed.',
                   busy: updating,
                   pendingAssignmentCount,

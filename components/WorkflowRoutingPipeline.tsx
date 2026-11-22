@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Icon, { type IconName } from '@/components/ui/Icon';
 import { getSubmissionStatusLabel as getFriendlyStatusLabel } from '@/lib/workflow/status';
 import {
   buildRoutingPipeline,
@@ -35,7 +36,7 @@ const formatTimestamp = (timestamp: string | null | undefined, compact: boolean)
 
 const NODE_STYLES: Record<RoutingPipelineState, string> = {
   complete: 'border-approved-text bg-approved-text text-white',
-  active: 'border-clay bg-clay text-white ring-4 ring-clay-soft',
+  active: 'border-clay bg-clay text-white ring-4 ring-clay-soft ui-pulse-ring',
   attention: 'border-pending-text bg-pending-bg text-pending-text ring-4 ring-pending-bg/60',
   rejected: 'border-rejected-text bg-rejected-text text-white',
   skipped: 'border-warm-border bg-sidebar text-muted-text',
@@ -51,13 +52,13 @@ const DETAIL_STYLES: Record<RoutingPipelineState, string> = {
   pending: 'text-muted-text',
 };
 
-const NODE_ICONS: Record<RoutingPipelineState, string> = {
-  complete: '✓',
-  active: '●',
-  attention: '!',
-  rejected: '×',
-  skipped: '–',
-  pending: '',
+const NODE_ICONS: Record<RoutingPipelineState, IconName | null> = {
+  complete: 'check',
+  active: 'clock',
+  attention: 'alert',
+  rejected: 'x',
+  skipped: null,
+  pending: null,
 };
 
 const STATE_NAMES: Record<RoutingPipelineState, string> = {
@@ -164,7 +165,7 @@ export default function WorkflowRoutingPipeline({
       )}
 
       <div ref={scrollerRef} className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
-        <ol dir="ltr" className={`flex w-max min-w-full justify-start ${compact ? 'pb-1' : 'pb-2'}`}>
+        <ol dir="ltr" className={`ui-stagger flex w-max min-w-full justify-start ${compact ? 'pb-1' : 'pb-2'}`}>
           {steps.map((step, index) => {
             const isCurrent = index === currentIndex;
             const timestamp = formatTimestamp(step.timestamp, compact);
@@ -182,23 +183,29 @@ export default function WorkflowRoutingPipeline({
                       index === 0
                         ? 'bg-transparent'
                         : reached
-                          ? 'bg-approved-text/70'
+                          ? 'ui-grow-x bg-approved-text/70'
                           : 'border-t-2 border-dashed border-warm-border bg-transparent'
                     }`}
+                    style={reached && index > 0 ? { animationDelay: `${index * 120 + 150}ms` } : undefined}
                   />
                   <span
                     className={`flex shrink-0 items-center justify-center rounded-full border-2 font-bold ${
                       compact ? 'h-6 w-6 text-[10px]' : 'h-9 w-9 text-sm'
-                    } ${NODE_STYLES[step.state]}`}
+                    } ${NODE_STYLES[step.state]} ui-pop`}
+                    style={{ animationDelay: `${index * 120}ms` }}
                   >
-                    {NODE_ICONS[step.state]}
+                    {NODE_ICONS[step.state] ? (
+                      <Icon name={NODE_ICONS[step.state]!} size={compact ? 12 : 17} strokeWidth={2.4} />
+                    ) : step.state === 'skipped' ? (
+                      <span aria-hidden="true">–</span>
+                    ) : null}
                   </span>
                   <span
                     className={`h-0.5 flex-1 ${
                       index === steps.length - 1
                         ? 'bg-transparent'
                         : index < currentIndex
-                          ? 'bg-approved-text/70'
+                          ? 'ui-grow-x bg-approved-text/70'
                           : 'border-t-2 border-dashed border-warm-border bg-transparent'
                     }`}
                   />

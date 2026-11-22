@@ -1,8 +1,11 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useMemo, useState } from 'react';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createClient } from '@/lib/supabase/client';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
 import {
   APP_BACKUP_FORMAT,
   APP_BACKUP_MAX_BYTES,
@@ -242,7 +245,7 @@ export default function DatabaseBackupPage() {
       setNotice(`Backup downloaded with ${manifest.tables.length} database tables and ${fileCount} stored files.`);
     } catch (backupError) {
       const message = getErrorMessage(backupError, 'Could not create the database backup.');
-      console.error('Database backup download failed:', message);
+      logClientError('Database backup download failed:', message);
       setError(message);
     } finally {
       setProgress('');
@@ -408,14 +411,14 @@ export default function DatabaseBackupPage() {
       );
     } catch (restoreError) {
       const message = getErrorMessage(restoreError, 'Could not restore this backup.');
-      console.error('Database backup restore failed:', message);
+      logClientError('Database backup restore failed:', message);
       setError(`${message}${restoreId ? ' The database merge is atomic; files already uploaded may remain in Storage and will be reused if you retry.' : ''}`);
       if (staged && restoreId) {
         try {
           const token = await getAccessToken(supabase);
           await apiPost(token, { action: 'cleanup', restoreId });
         } catch (cleanupError) {
-          console.error('Could not clean up staged backup data:', getErrorMessage(cleanupError, 'Unknown cleanup error.'));
+          logClientError('Could not clean up staged backup data:', getErrorMessage(cleanupError, 'Unknown cleanup error.'));
         }
       }
     } finally {
@@ -432,34 +435,41 @@ export default function DatabaseBackupPage() {
 
   return (
     <div className="space-y-7">
-      <section className="rounded-2xl border border-warm-border bg-card p-6">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-clay">Administration</p>
-        <h1 className="mt-2 text-2xl font-semibold text-warm-text">Database Backup & Restore</h1>
-        <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-text">
-          Download a project-bound archive of application database records and workflow files. Restore merges missing records and files without overwriting existing ones.
-        </p>
-      </section>
+      <PageHero
+        greet={false}
+        className="mb-0"
+        eyebrow="Administration"
+        icon="database"
+        title="Database Backup & Restore"
+        description={
+          <p className="max-w-3xl leading-5">
+            Download a project-bound archive of application database records and workflow files. Restore merges missing records and files without overwriting existing ones.
+          </p>
+        }
+      />
 
       {error && (
-        <div role="alert" className="rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
-          {error}
+        <div role="alert" className="ui-fade-up flex items-start gap-2 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
+          <Icon name="alert" size={15} className="mt-px shrink-0" />
+          <span>{error}</span>
         </div>
       )}
       {notice && (
-        <div role="status" className="rounded-xl border border-approved-bg bg-approved-bg/50 px-4 py-3 text-xs text-approved-text">
-          {notice}
+        <div role="status" className="ui-fade-up flex items-start gap-2 rounded-xl border border-approved-bg bg-approved-bg/50 px-4 py-3 text-xs text-approved-text">
+          <Icon name="check" size={15} className="mt-px shrink-0" />
+          <span>{notice}</span>
         </div>
       )}
       {progress && (
-        <div role="status" className="flex items-center gap-3 rounded-xl border border-warm-border bg-card px-4 py-3 text-xs text-muted-text">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-clay" />
+        <div role="status" className="ui-fade-up flex items-center gap-3 rounded-xl border border-warm-border bg-card px-4 py-3 text-xs text-muted-text">
+          <Icon name="refresh" size={15} className="shrink-0 animate-spin text-clay motion-reduce:animate-none" />
           {progress}
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-2xl border border-warm-border bg-card p-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-clay-soft text-lg text-clay" aria-hidden="true">↓</div>
+      <div className="ui-stagger grid gap-5 lg:grid-cols-2">
+        <section className="ui-lift group rounded-2xl border border-warm-border bg-card p-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-clay-soft text-clay transition-transform duration-300 group-hover:-translate-y-0.5"><Icon name="download" size={19} /></div>
           <h2 className="mt-4 text-base font-semibold text-warm-text">Download a backup</h2>
           <p className="mt-2 min-h-12 text-xs leading-5 text-muted-text">
             Includes application tables, audit history, and files from the workflow storage buckets. The archive is limited to 250 MB.
@@ -468,19 +478,21 @@ export default function DatabaseBackupPage() {
             type="button"
             disabled={backupBusy || restoreBusy}
             onClick={() => void createBackup()}
-            className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-clay/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-clay/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
+            <Icon name={backupBusy ? 'refresh' : 'download'} size={15} className={backupBusy ? 'animate-spin motion-reduce:animate-none' : ''} />
             {backupBusy ? 'Creating backup…' : 'Download backup archive'}
           </button>
         </section>
 
-        <section className="rounded-2xl border border-warm-border bg-card p-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-clay-soft text-lg text-clay" aria-hidden="true">↑</div>
+        <section className="ui-lift group rounded-2xl border border-warm-border bg-card p-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-clay-soft text-clay transition-transform duration-300 group-hover:-translate-y-0.5"><Icon name="database" size={19} /></div>
           <h2 className="mt-4 text-base font-semibold text-warm-text">Merge a backup</h2>
           <p className="mt-2 min-h-12 text-xs leading-5 text-muted-text">
             Restores missing records and files only. Existing records, uploaded files, Auth accounts, and profile roles are not overwritten or deleted.
           </p>
-          <label className={`mt-5 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar ${restoreBusy || backupBusy ? 'pointer-events-none opacity-60' : ''}`}>
+          <label className={`mt-5 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full border border-warm-border px-5 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar ${restoreBusy || backupBusy ? 'pointer-events-none opacity-60' : ''}`}>
+            <Icon name={restoreBusy ? 'refresh' : 'archive'} size={15} className={restoreBusy ? 'animate-spin motion-reduce:animate-none' : ''} />
             {restoreBusy ? 'Restoring backup…' : 'Choose backup archive'}
             <input
               type="file"
@@ -493,8 +505,8 @@ export default function DatabaseBackupPage() {
         </section>
       </div>
 
-      <section className="rounded-2xl border border-pending-bg bg-pending-bg/40 p-5">
-        <h2 className="text-xs font-semibold text-pending-text">Backup scope and restore notes</h2>
+      <section className="ui-fade-up rounded-2xl border border-pending-bg bg-pending-bg/40 p-5">
+        <h2 className="flex items-center gap-2 text-xs font-semibold text-pending-text"><Icon name="shield-check" size={15} /> Backup scope and restore notes</h2>
         <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] leading-5 text-muted-text">
           <li>Archives are tied to this Supabase project and cannot be merged into another project.</li>
           <li>Supabase Auth users, passwords, internal schemas, and live officer-presence sessions are not included.</li>

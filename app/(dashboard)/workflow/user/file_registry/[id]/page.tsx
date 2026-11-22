@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -202,7 +203,7 @@ export default function UserFileDetail() {
           { target_submission_id: id },
         );
         if (qrLoadError) {
-          console.error('Retrieval QR load failed:', qrLoadError.message);
+          logClientError('Retrieval QR load failed:', qrLoadError.message);
           setQrError('We couldn’t load your pickup QR code. Refresh the page and try again.');
         } else {
           const existingQr = Array.isArray(qrData) ? qrData[0] : qrData;
@@ -214,7 +215,7 @@ export default function UserFileDetail() {
         setQrError('');
       }
     } catch (error) {
-      console.error('Submission detail load failed:', error);
+      logClientError('Submission detail load failed:', error);
       const message = 'We couldn’t load your request. Refresh the page to try again.';
       setRevisionHistoryError('We couldn’t load your version history. Refresh the page to try again.');
       setRouteError('We couldn’t load the latest office updates. Refresh the page to try again.');
@@ -259,7 +260,7 @@ export default function UserFileDetail() {
         throw new Error('The application URL must use HTTP or HTTPS.');
       }
     } catch (error) {
-      console.error('Retrieval QR application URL is invalid:', error);
+      logClientError('Retrieval QR application URL is invalid:', error);
       if (active) setQrError('The pickup QR code could not be created because the app address is not set up correctly. Please contact support.');
       return () => {
         active = false;
@@ -285,7 +286,7 @@ export default function UserFileDetail() {
     }).then((dataUrl) => {
       if (active) setQrImage(dataUrl);
     }).catch((error: unknown) => {
-      console.error('Retrieval QR rendering failed:', error);
+      logClientError('Retrieval QR rendering failed:', error);
       if (active) setQrError('Could not render the QR code. Please try again.');
     });
 
@@ -310,7 +311,7 @@ export default function UserFileDetail() {
       }
       setRetrievalQr(createdQr);
     } catch (error) {
-      console.error('Retrieval QR generation failed:', error);
+      logClientError('Retrieval QR generation failed:', error);
       setQrError(error instanceof Error ? error.message : 'We couldn’t create your pickup QR code. Please refresh the page and try again.');
     } finally {
       setQrLoading(false);
@@ -348,7 +349,7 @@ export default function UserFileDetail() {
       setRedirectOtherDocumentType('');
       await fetchSubmission(true);
     } catch (error) {
-      console.error('Submission redirect failed:', error);
+      logClientError('Submission redirect failed:', error);
       throw error instanceof Error ? error : new Error('Could not send your request to the selected office.');
     } finally {
       setSavingRedirect(false);
@@ -465,8 +466,10 @@ export default function UserFileDetail() {
     const uploadedPaths: string[] = [];
     setSubmittingRevision(true);
     try {
-      if (!accountUserId || accountUserId !== sub.user_id) {
-        throw new Error('Your active submitter account could not be verified.');
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user || authData.user.id !== sub.user_id) {
+        throw new Error('Your active requestee account could not be verified.');
       }
 
       const uploadPlan = [
@@ -571,7 +574,7 @@ export default function UserFileDetail() {
       setRevisionAddedFiles([]);
       await fetchSubmission(true);
     } catch (error) {
-      console.error('Submission revision failed:', error);
+      logClientError('Submission revision failed:', error);
       let cleanupFailed = false;
       if (uploadedPaths.length > 0) {
         try {
@@ -581,7 +584,7 @@ export default function UserFileDetail() {
           if (cleanupError) throw cleanupError;
         } catch (cleanupError) {
           cleanupFailed = true;
-          console.error('Could not clean up uncommitted revision uploads:', cleanupError);
+          logClientError('Could not clean up uncommitted revision uploads:', cleanupError);
         }
       }
       const message = getErrorMessage(error, 'Could not submit this revision.');
@@ -617,7 +620,7 @@ export default function UserFileDetail() {
       setRevisionEditorOpen(false);
       await fetchSubmission(true);
     } catch (error) {
-      console.error('Permanent submission closure failed:', error);
+      logClientError('Permanent submission closure failed:', error);
       setActionError(getErrorMessage(error, 'Could not permanently close your request.'));
     } finally {
       setClosingPermanently(false);
@@ -763,7 +766,7 @@ export default function UserFileDetail() {
       .from('workflow_uploads')
       .createSignedUrl(attachment.file_path, 300);
     if (error || !data?.signedUrl) {
-      console.error('Could not authorize attachment download:', error?.message);
+      logClientError('Could not authorize attachment download:', error?.message);
       setActionError('Could not open this additional document. Please try again.');
       return;
     }
@@ -776,7 +779,7 @@ export default function UserFileDetail() {
       const url = await getFileUrl(supabase, sub);
       await downloadFile(url, sub.file_name);
     } catch (error) {
-      console.error('Could not download the original document:', error);
+      logClientError('Could not download the original document:', error);
       setActionError('Could not download the original document. Please try again.');
     }
   };

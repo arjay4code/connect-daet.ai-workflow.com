@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -11,6 +12,9 @@ import { getSubmissionStatusLabel } from '@/lib/workflow/status';
 import { matchesFileBrowserFilter, type FileBrowserFilter } from '@/lib/workflow/file-browser';
 import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
 import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
+import Icon from '@/components/ui/Icon';
+import PageHero from '@/components/ui/PageHero';
+import SkeletonRows from '@/components/ui/SkeletonRows';
 
 // ─── Styles & Fonts (synced with dashboard) ──────────────────────────────────
 const fonts = {
@@ -66,10 +70,10 @@ export default function UserFileRegistry() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) console.error('Fetch error:', error);
+      if (error) logClientError('Fetch error:', error);
       setSubmissions(data || []);
     } catch (err) {
-      console.error('Failed to load files:', err);
+      logClientError('Failed to load files:', err);
     } finally {
       setLoading(false);
     }
@@ -95,39 +99,40 @@ export default function UserFileRegistry() {
       <div>
 
         {/* HEADER */}
-        <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-center max-md:mb-5 max-md:gap-3">
-          <div>
-            <p className="mb-3 flex items-center gap-2 text-[11px] font-medium text-muted-text max-md:mb-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-clay" /> User Portal // My Submissions
-            </p>
-            <h1 className={`${fonts.serif} text-[32px] leading-tight text-warm-text max-md:text-[26px]`}>Files.</h1>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link
-              href="/workflow/user/archive"
-              className="inline-flex h-11 items-center justify-center rounded-full border border-warm-border bg-card px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:w-full"
-            >
-              Archive
-            </Link>
-            <Link
-              href="/workflow/user/upload"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:w-full"
-            >
-              <span className="text-lg font-normal leading-none" aria-hidden="true">+</span> Upload New File
-            </Link>
-          </div>
-        </div>
+        <PageHero
+          greet={false}
+          eyebrow="User Portal // My Submissions"
+          icon="files"
+          title="Files."
+          description={<>Every request you have sent, with its live route. Showing <span className="text-warm-text">{filteredSubmissions.length}</span> files.</>}
+          actions={
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Link
+                href="/workflow/user/archive"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-6 text-xs font-semibold text-warm-text transition-colors hover:bg-sidebar max-md:w-full"
+              >
+                <Icon name="archive" size={15} /> Archive
+              </Link>
+              <Link
+                href="/workflow/user/upload"
+                className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-warm-text max-md:w-full"
+              >
+                <Icon name="plus" size={16} className="transition-transform duration-300 group-hover:rotate-90" /> Upload New File
+              </Link>
+            </div>
+          }
+        />
 
         {/* TOOLBAR */}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-xl lg:flex-1">
-            <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
+            <span className="pointer-events-none absolute left-5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><Icon name="search" size={15} /> SEARCH //</span>
             <input
               type="text"
               placeholder="Find a file by name, tracking number, or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
+              className="h-12 w-full rounded-full border border-warm-border bg-card pl-32 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
             />
           </div>
 
@@ -137,28 +142,29 @@ export default function UserFileRegistry() {
         {/* FILE LIST */}
         <div>
           {loading ? (
-            <div className="flex items-center gap-3 rounded-2xl border border-warm-border bg-card px-5 py-8 text-xs text-muted-text">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-clay" /> Loading your files...
-            </div>
+            <SkeletonRows rows={4} label="Loading your files…" />
           ) : filteredSubmissions.length === 0 ? (
-            <div className="rounded-2xl border border-warm-border bg-card py-16 text-center">
+            <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
+              <span className="ui-float mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-clay-soft text-clay">
+                <Icon name="search" size={24} />
+              </span>
               <p className={`${fonts.serif} text-2xl text-warm-text`}>Nothing here</p>
               <p className="mt-2 text-xs text-muted-text">
                 No files match your search or selected status filter.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="ui-stagger space-y-3">
               {filteredSubmissions.map((file) => {
                 const route = routesBySubmission[file.id];
                 return (
                   <article
                     key={file.id}
-                    className="group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 transition-colors hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
+                    className="ui-lift group grid grid-cols-1 gap-4 rounded-2xl border border-warm-border bg-card px-5 py-5 hover:border-clay-border sm:grid-cols-12 max-md:gap-3 max-md:px-3.5 max-md:py-3.5"
                   >
                     <div className="flex min-w-0 items-center gap-4 sm:col-span-8">
-                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text">
-                        <span className="text-lg leading-4" aria-hidden="true">▤</span>
+                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-sidebar text-muted-text transition-colors duration-200 group-hover:bg-clay-soft group-hover:text-clay">
+                        <Icon name="file" size={18} />
                         <span className="mt-1 text-[8px] font-semibold uppercase">{file.file_type?.split('/').at(-1)?.slice(0, 3) || 'File'}</span>
                       </div>
 
@@ -204,16 +210,14 @@ export default function UserFileRegistry() {
                           title="Quick Preview"
                           aria-label="Quick Preview"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                          </svg>
+                          <Icon name="eye" size={18} />
                         </button>
 
                         <Link
                           href={`/workflow/user/file_registry/${file.id}`}
-                          className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
+                          className="group/view inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full"
                         >
-                          View document <span aria-hidden="true">→</span>
+                          View document <Icon name="arrow-right" size={14} className="transition-transform duration-200 group-hover/view:translate-x-0.5" />
                         </Link>
                       </div>
                     </div>

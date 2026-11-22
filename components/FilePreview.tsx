@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -48,7 +49,7 @@ export async function getFileUrl(supabase: ReturnType<typeof createClient>, file
   const loc = resolveStorage(file);
   if (loc) {
     const { data, error } = await supabase.storage.from(loc.bucket).createSignedUrl(loc.path, 3600);
-    if (error) console.error('Signed URL error:', error.message, loc);
+    if (error) logClientError('Signed URL error:', error.message, loc);
     if (data?.signedUrl) return data.signedUrl;
   }
   return file.file_url;
@@ -67,7 +68,7 @@ export async function downloadFile(url: string, filename: string) {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
   } catch (e) {
-    console.error('Download error', e);
+    logClientError('Download error', e);
     window.open(url, '_blank');
   }
 }
@@ -204,7 +205,7 @@ export default function FilePreview({
         const parsed = await parsers.parseForPreview(ext, buf);
         if (!cancelled) setDoc({ status: 'ready', parsed });
       } catch (e) {
-        console.error('Preview error:', e);
+        logClientError('Preview error:', e);
         if (!cancelled) setDoc({ status: 'error', parsed: null });
       }
     })();

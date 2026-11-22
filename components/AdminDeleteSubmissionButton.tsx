@@ -1,4 +1,5 @@
 'use client';
+import { logClientError } from '@/lib/clientLogger';
 
 import { useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -50,7 +51,7 @@ export default function AdminDeleteSubmissionButton({
         || !isStringArray(data.workflow_uploads)
         || !isStringArray(data.workflow_message_attachments)
       ) {
-        console.error('Submission was deleted, but its stored-file cleanup details were unavailable:', data);
+        logClientError('Submission was deleted, but its stored-file cleanup details were unavailable:', data);
         window.alert(
           'The submission record was deleted, but uploaded files could not be verified for cleanup. Contact your system administrator.',
         );
@@ -69,7 +70,7 @@ export default function AdminDeleteSubmissionButton({
       }
 
       if (cleanupErrors.length > 0) {
-        console.error('Submission was deleted, but uploaded files could not all be removed:', cleanupErrors);
+        logClientError('Submission was deleted, but uploaded files could not all be removed:', cleanupErrors);
         window.alert(
           'The submission record was deleted, but some uploaded files could not be removed. Contact your system administrator to finish storage cleanup.',
         );
@@ -78,7 +79,7 @@ export default function AdminDeleteSubmissionButton({
       const message = deleteError instanceof Error
         ? deleteError.message
         : 'Could not delete this submission.';
-      console.error('Could not delete workflow submission:', deleteError);
+      logClientError('Could not delete workflow submission:', deleteError);
       setError(message);
     } finally {
       setDeleting(false);
