@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { getPasswordValidationError, MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
+import {
+  getPasswordValidationError,
+  MINIMUM_PASSWORD_LENGTH,
+  PASSWORD_REQUIREMENTS_HINT,
+} from '@/lib/auth/password';
 
 const fieldClasses =
   'h-11 w-full rounded-full border border-warm-border bg-card px-4 text-sm text-warm-text caret-current outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay';
@@ -86,7 +90,7 @@ export default function ResetPasswordPage() {
             {updated ? 'Password updated' : 'Choose a new password'}
           </h1>
           <p className="mt-2 text-xs text-muted-text">
-            {updated ? 'You can now sign in with your new password.' : `Use at least ${MINIMUM_PASSWORD_LENGTH} characters.`}
+            {updated ? 'You can now sign in with your new password.' : PASSWORD_REQUIREMENTS_HINT}
           </p>
         </div>
         <section className="rounded-2xl border border-warm-border bg-card p-5">

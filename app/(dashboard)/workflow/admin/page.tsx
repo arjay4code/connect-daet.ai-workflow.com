@@ -294,7 +294,7 @@ export default function AdminDashboard() {
                   className="h-12 w-full rounded-full border border-warm-border bg-card pl-32 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
                 />
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <FileBrowserFilterSelect
                   value={fileFilter}
                   onChange={(value) => {
@@ -309,6 +309,15 @@ export default function AdminDashboard() {
                     setFilePage(1);
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => void fetchMonitoringData()}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50 max-md:h-11"
+                >
+                  <Icon name="refresh" size={14} className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </button>
               </div>
             </div>
 

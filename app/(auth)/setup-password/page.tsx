@@ -5,7 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { getRoleHomePath } from '@/lib/workflow/offices';
-import { getPasswordValidationError, MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
+import {
+  getPasswordValidationError,
+  MINIMUM_PASSWORD_LENGTH,
+  PASSWORD_REQUIREMENTS_HINT,
+} from '@/lib/auth/password';
 
 export default function SetupPasswordPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -116,7 +120,7 @@ export default function SetupPasswordPage() {
                   required
                   className="h-11 w-full rounded-full border border-warm-border bg-card px-4 text-sm text-warm-text outline-none focus:border-clay"
                 />
-                <p className="mt-1.5 text-[11px] text-muted-text">Use at least {MINIMUM_PASSWORD_LENGTH} characters. A unique passphrase is fine.</p>
+                <p className="mt-1.5 text-[11px] text-muted-text">{PASSWORD_REQUIREMENTS_HINT}</p>
               </div>
               <div>
                 <label htmlFor="confirm-password" className="mb-1.5 block text-[11px] font-medium text-muted-text">Confirm password</label>

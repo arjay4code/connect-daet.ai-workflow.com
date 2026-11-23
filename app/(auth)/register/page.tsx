@@ -3,7 +3,11 @@
 import { useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { getPasswordValidationError, MINIMUM_PASSWORD_LENGTH } from '@/lib/auth/password';
+import {
+  getPasswordValidationError,
+  MINIMUM_PASSWORD_LENGTH,
+  PASSWORD_REQUIREMENTS_HINT,
+} from '@/lib/auth/password';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {
@@ -147,7 +151,7 @@ export default function RegisterPage() {
                 minLength={MINIMUM_PASSWORD_LENGTH}
                 required
               />
-              <p className="mt-1.5 text-[11px] text-muted-text">Use at least {MINIMUM_PASSWORD_LENGTH} characters. A unique passphrase is fine.</p>
+              <p className="mt-1.5 text-[11px] text-muted-text">{PASSWORD_REQUIREMENTS_HINT}</p>
             </div>
 
             <div>

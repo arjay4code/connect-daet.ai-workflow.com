@@ -38,7 +38,8 @@ export function useSubmissions(statusFilter?: string) {
   const [loading, setLoading] = useState(true);
   const fetchInFlightRef = useRef(false);
 
-  const fetchSubmissions = useCallback(async () => {
+  const fetchSubmissions = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     if (fetchInFlightRef.current) return;
     fetchInFlightRef.current = true;
     try {
@@ -127,5 +128,11 @@ export function useSubmissions(statusFilter?: string) {
   }, [fetchSubmissions, supabase]);
   useWorkflowPolling(fetchSubmissions);
 
-  return { submissions, loading, adminApprove, adminDecline, refreshSubmissions: fetchSubmissions };
+  return {
+    submissions,
+    loading,
+    adminApprove,
+    adminDecline,
+    refreshSubmissions: () => fetchSubmissions(true),
+  };
 }
