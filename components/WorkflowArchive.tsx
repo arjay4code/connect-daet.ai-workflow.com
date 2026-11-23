@@ -15,6 +15,7 @@ import { getSubmissionStatusLabel, getSubmissionStatusTone } from '@/lib/workflo
 import Icon from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 type ArchiveRole = 'submitter' | 'system_admin' | OfficeRole;
 

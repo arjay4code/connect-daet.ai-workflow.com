@@ -618,7 +618,7 @@ export default function DocumentMessaging({
           table: 'workflow_messages',
           filter: `submission_id=eq.${submissionId}`,
         }, () => {
-          void refreshLatest(user.id).catch((loadError: unknown) => {
+          void refreshLatest(userId).catch((loadError: unknown) => {
             logClientError('Live document message refresh failed:', loadError);
             if (active) setError(loadError instanceof Error ? loadError.message : 'Could not refresh messages.');
           });
@@ -629,7 +629,7 @@ export default function DocumentMessaging({
           table: 'workflow_message_attachments',
           filter: `submission_id=eq.${submissionId}`,
         }, () => {
-          void refreshLatest(user.id).catch((loadError: unknown) => {
+          void refreshLatest(userId).catch((loadError: unknown) => {
             logClientError('Live message attachment refresh failed:', loadError);
             if (active) setError(loadError instanceof Error ? loadError.message : 'Could not refresh attachments.');
           });
