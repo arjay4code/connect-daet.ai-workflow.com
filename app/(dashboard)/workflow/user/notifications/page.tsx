@@ -10,6 +10,7 @@ import SwipeDismissNotification from '@/components/SwipeDismissNotification';
 import PageHero from '@/components/ui/PageHero';
 import Icon from '@/components/ui/Icon';
 import SkeletonRows from '@/components/ui/SkeletonRows';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 // ─── Styles & Fonts (synced with dashboard) ──────────────────────────────────
 const fonts = {

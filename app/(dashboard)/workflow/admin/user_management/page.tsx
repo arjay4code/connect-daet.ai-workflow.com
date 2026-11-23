@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import Icon from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const fonts = {

@@ -24,6 +24,7 @@ import Icon, { type IconName } from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
 import StatCard, { type StatTone } from '@/components/ui/StatCard';
+import { useWorkflowPolling } from '@/lib/workflow/useWorkflowPolling';
 
 type Role =
   | 'submitter'

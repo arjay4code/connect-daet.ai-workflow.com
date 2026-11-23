@@ -6,6 +6,7 @@ import type { Html5Qrcode } from 'html5-qrcode';
 import { createClient } from '@/lib/supabase/client';
 import { isOfficeRole, OFFICE_CONFIG, type OfficeRole } from '@/lib/workflow/offices';
 import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 import Icon from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 
