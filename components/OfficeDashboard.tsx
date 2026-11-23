@@ -100,7 +100,10 @@ export default function OfficeDashboard({
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [previewFile]);
 
-  const fetchSubmissions = useCallback(async () => {
+  const fetchSubmissions = useCallback(async (background = true) => {
+    if (!background) setLoading(true);
+    setError('');
+
     const { data: plans, error: plansError } = await supabase
       .from('workflow_routing_plans')
       .select('id, submission_id, version, is_current')
@@ -355,7 +358,7 @@ export default function OfficeDashboard({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => void fetchSubmissions()}
+                  onClick={() => void fetchSubmissions(false)}
                   disabled={loading}
                   className="inline-flex h-10 items-center gap-2 rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50"
                 >
@@ -374,7 +377,7 @@ export default function OfficeDashboard({
             {error ? (
               <div role="alert" className="rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-4 text-xs text-rejected-text">
                 <p>{error}</p>
-                <button type="button" onClick={() => void fetchSubmissions()} className="mt-3 font-semibold underline">
+                <button type="button" onClick={() => void fetchSubmissions(false)} className="mt-3 font-semibold underline">
                   Retry
                 </button>
               </div>
@@ -438,25 +441,26 @@ export default function OfficeDashboard({
         </>
       ) : (
         <section>
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <label className="relative w-full lg:max-w-xl lg:flex-1" htmlFor="office-search">
+          <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center">
+            <label className="relative block min-w-0 w-full" htmlFor="office-search">
               <span className="pointer-events-none absolute left-5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text">SEARCH //</span>
               <input
                 id="office-search"
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Find a file by name..."
+                placeholder="Find by name, tracking number, or category..."
                 className="h-12 w-full rounded-full border border-warm-border bg-card pl-28 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
               />
             </label>
             <FileBrowserFilterSelect value={filter} onChange={setFilter} />
             <button
               type="button"
-              onClick={() => void fetchSubmissions()}
+              onClick={() => void fetchSubmissions(false)}
               disabled={loading}
-              className="h-12 shrink-0 self-start rounded-full border border-warm-border bg-card px-4 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50 lg:self-auto max-md:h-11"
+              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-medium text-warm-text hover:bg-sidebar disabled:opacity-50 max-md:h-11"
             >
+              <Icon name="refresh" size={14} className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
@@ -464,11 +468,11 @@ export default function OfficeDashboard({
           {error ? (
             <div role="alert" className="rounded-2xl border border-rejected-bg bg-rejected-bg/50 px-5 py-6 text-xs text-rejected-text">
               <p>{error}</p>
-              <button type="button" onClick={() => void fetchSubmissions()} className="mt-3 font-semibold underline">
+              <button type="button" onClick={() => void fetchSubmissions(false)} className="mt-3 font-semibold underline">
                 Retry
               </button>
             </div>
-          ) : loading ? (
+          ) : loading && submissions.length === 0 ? (
             <SkeletonRows rows={4} label="Loading files…" />
           ) : (
             <>

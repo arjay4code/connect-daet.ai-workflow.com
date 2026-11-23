@@ -43,6 +43,7 @@ interface FileSubmission extends PreviewSubmission {
 export default function UserFileRegistry() {
   const [submissions, setSubmissions] = useState<FileSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [activeFilter, setActiveFilter] = useState<FileBrowserFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewFile, setPreviewFile] = useState<PreviewSubmission | null>(null);
@@ -59,10 +60,17 @@ export default function UserFileRegistry() {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [previewFile]);
 
-  const fetchUserFiles = useCallback(async () => {
+  const fetchUserFiles = useCallback(async (background = true) => {
+    if (!background) setLoading(true);
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) {
+        setSubmissions([]);
+        setLoadError('Sign in to view your files.');
+        return;
+      }
 
       const { data, error } = await supabase
         .from('workflow_submissions')
@@ -70,10 +78,12 @@ export default function UserFileRegistry() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) logClientError('Fetch error:', error);
-      setSubmissions(data || []);
+      if (error) throw error;
+      setSubmissions(data ?? []);
+      setLoadError('');
     } catch (err) {
       logClientError('Failed to load files:', err);
+      setLoadError('Could not load your files. Please refresh and try again.');
     } finally {
       setLoading(false);
     }
@@ -124,24 +134,37 @@ export default function UserFileRegistry() {
         />
 
         {/* TOOLBAR */}
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full lg:max-w-xl lg:flex-1">
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_auto] lg:items-center">
+          <div className="relative min-w-0 w-full">
             <span className="pointer-events-none absolute left-5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-text"><Icon name="search" size={15} /> SEARCH //</span>
             <input
-              type="text"
+              type="search"
               placeholder="Find a file by name, tracking number, or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-12 w-full rounded-full border border-warm-border bg-card pl-32 pr-5 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/60 focus:border-clay max-md:h-11"
             />
           </div>
-
           <FileBrowserFilterSelect value={activeFilter} onChange={setActiveFilter} />
+          <button
+            type="button"
+            onClick={() => void fetchUserFiles(false)}
+            disabled={loading}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50 max-md:h-11"
+          >
+            <Icon name="refresh" size={14} className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
         {/* FILE LIST */}
         <div>
-          {loading ? (
+          {loadError ? (
+            <p role="alert" className="mb-4 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs text-rejected-text">
+              {loadError}
+            </p>
+          ) : null}
+          {loading && submissions.length === 0 ? (
             <SkeletonRows rows={4} label="Loading your files…" />
           ) : filteredSubmissions.length === 0 ? (
             <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">

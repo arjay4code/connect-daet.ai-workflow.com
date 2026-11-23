@@ -3,7 +3,11 @@ import { logClientError } from '@/lib/clientLogger';
 
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { RoutingPipelineAuditEvent, RoutingPipelineRouteStep } from './routing-pipeline';
+import {
+  ROUTING_AUDIT_ACTIONS,
+  type RoutingPipelineAuditEvent,
+  type RoutingPipelineRouteStep,
+} from './routing-pipeline';
 
 export interface RoutePreviewSubmission {
   id: string;
@@ -21,29 +25,6 @@ export interface WorkflowRoutePreview {
   auditEvents: RoutingPipelineAuditEvent[];
   loadFailed: boolean;
 }
-
-const ROUTING_AUDIT_ACTIONS = [
-  'SUBMISSION_RECEIVED',
-  'OFFICE_ASSIGNMENT_FORWARDED',
-  'OFFICE_ASSIGNMENT_FORWARDED_ONWARD',
-  'OFFICE_FORWARDED_TO_TOURISM_OFFICER',
-  'TOURISM_OFFICER_ASSIGNMENTS_CREATED',
-  'OFFICE_FINAL_DECISION',
-  'WORKFLOW_COMPLETED',
-  'SUBMISSION_APPROVED',
-  'SUBMISSION_REJECTED',
-  'SUBMISSION_CLOSED',
-  'SUBMISSION_REOPENED',
-  'CHANGES_REQUESTED',
-  'CHANGES_RESPONDED',
-  'ROUTE_REQUIREMENTS_REQUESTED',
-  'REQUIREMENTS_RESUBMITTED',
-  'REVISED_DOCUMENT_SUBMITTED',
-  'RETURNED_TO_SUBMITTER',
-  'SUBMISSION_WITHDRAWN',
-  'OFFICE_REJECTED',
-  'FINAL_REJECTION',
-];
 
 export function useRoutePreviews(submissions: RoutePreviewSubmission[]) {
   const supabase = useMemo(() => createClient(), []);

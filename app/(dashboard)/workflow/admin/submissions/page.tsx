@@ -137,7 +137,7 @@ export default function SubmissionsPage() {
         />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <FileBrowserFilterSelect
             value={filter}
             onChange={(value) => {
@@ -152,6 +152,15 @@ export default function SubmissionsPage() {
               setPage(1);
             }}
           />
+          <button
+            type="button"
+            onClick={() => void refreshSubmissions()}
+            disabled={loading}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-warm-border bg-card px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar disabled:opacity-50 max-md:h-11"
+          >
+            <Icon name="refresh" size={14} className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -162,7 +171,7 @@ export default function SubmissionsPage() {
       </div>
 
       {/* List */}
-      {loading ? (
+      {loading && submissions.length === 0 ? (
         <SkeletonRows rows={4} label="Loading files…" />
       ) : filteredSubmissions.length === 0 ? (
         <div className="ui-fade-up rounded-2xl border border-warm-border bg-card py-16 text-center">
