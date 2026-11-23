@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import {
@@ -26,6 +26,7 @@ export default function RegisterPage() {
   const [status, setStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
+  const isSubmitting = useRef(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,33 +49,60 @@ export default function RegisterPage() {
       return;
     }
 
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
     setLoading(true);
     setStatus(null);
 
-    const { error } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation`,
-        data: {
-          full_name: trimmedName,
-          role: 'submitter',
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation`,
+          data: {
+            full_name: trimmedName,
+            role: 'submitter',
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      setStatus({ type: 'error', message: error.message });
-    } else {
+      if (error) {
+        const errorMessage = error.message.trim();
+        const isRateLimited = error.status === 429
+          || error.code === 'over_email_send_rate_limit'
+          || /rate limit/i.test(errorMessage);
+        console.error('Registration request failed:', {
+          status: error.status ?? null,
+          code: error.code ?? null,
+          message: errorMessage,
+        });
+        setStatus({
+          type: 'error',
+          message: isRateLimited
+            ? 'Email confirmation is temporarily rate-limited. Please wait before trying again, or contact the administrator to configure email delivery.'
+            : errorMessage && errorMessage !== '{}'
+              ? errorMessage
+              : 'Registration could not be completed. Please check Supabase Auth logs or try again later.',
+        });
+        return;
+      }
+
       setStatus({ type: 'success', message: 'Check your email to confirm your address before logging in.' });
-
-      // Clear form
       setEmail('');
       setFullName('');
       setPassword('');
       setConfirmPassword('');
+    } catch (error) {
+      console.error('Unexpected registration request failure:', error);
+      setStatus({
+        type: 'error',
+        message: 'We could not submit your registration right now. Please try again later.',
+      });
+    } finally {
+      isSubmitting.current = false;
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

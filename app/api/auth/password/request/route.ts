@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -25,7 +24,10 @@ export async function POST(request: NextRequest) {
 
   let applicationOrigin: URL;
   try {
-    applicationOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin);
+    const applicationUrl = process.env.NODE_ENV === 'development'
+      ? request.nextUrl.origin
+      : process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    applicationOrigin = new URL(applicationUrl);
     if (!['http:', 'https:'].includes(applicationOrigin.protocol)) {
       throw new Error('The application URL must use HTTP or HTTPS.');
     }
@@ -37,61 +39,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const response = NextResponse.json(
-    { requested: true },
-    { headers: { 'Cache-Control': 'no-store' } }
-  );
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('Password recovery is missing Supabase service configuration.');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!supabaseUrl || !anonKey) {
+    console.error('Password recovery is missing Supabase public configuration.');
     return NextResponse.json(
       { error: 'Password recovery is not configured correctly.' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const normalizedEmail = payload.email.trim().toLowerCase();
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('id')
-    .eq('email', normalizedEmail)
-    .maybeSingle();
-
-  if (profileError) {
-    console.error('Password recovery account lookup failed:', profileError.message);
-    return NextResponse.json(
-      { error: 'We could not process your request right now. Please try again later.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } }
-    );
-  }
-
-  if (!profile) {
-    return NextResponse.json(
-      { error: "This email doesn't exist." },
-      { status: 404, headers: { 'Cache-Control': 'no-store' } }
-    );
-  }
-
-  const supabase = createServerClient(
-    supabaseUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
   const redirectTo = new URL('/auth/password-recovery/callback', applicationOrigin);
   const { error } = await supabase.auth.resetPasswordForEmail(
     normalizedEmail,
@@ -100,11 +61,20 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('Password recovery request failed:', error.message);
+    if (error.status === 429) {
+      return NextResponse.json(
+        { error: 'Too many reset requests. Please wait and try again later.' },
+        { status: 429, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
     return NextResponse.json(
       { error: 'We could not process your request right now. Please try again later.' },
       { status: 503, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 
-  return response;
+  return NextResponse.json(
+    { requested: true },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }

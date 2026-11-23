@@ -31,3 +31,37 @@ test('registration confirmation and password recovery keep distinct callback des
   assert.match(recoveryCallback, /searchParams\.forEach/);
   assert.match(recoveryCallback, /callbackUrl\.searchParams\.set\('next',\s*'\/reset-password'\)/);
 });
+
+test('password recovery uses the public auth API without a service-role account lookup', async () => {
+  const [recovery, forgotPassword] = await Promise.all([
+    read('../app/api/auth/password/request/route.ts'),
+    read('../app/(auth)/forgot-password/page.tsx'),
+  ]);
+
+  assert.match(recovery, /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
+  assert.match(recovery, /resetPasswordForEmail/);
+  assert.match(recovery, /process\.env\.NODE_ENV === 'development'[\s\S]*request\.nextUrl\.origin/);
+  assert.doesNotMatch(recovery, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(recovery, /\.from\('profiles'\)/);
+  assert.doesNotMatch(recovery, /status:\s*404/);
+  assert.match(forgotPassword, /If an account exists for this email/);
+  assert.match(forgotPassword, /response\.status === 429/);
+});
+
+test('registration prevents duplicate requests and explains Supabase email rate limits', async () => {
+  const registration = await read('../app/(auth)/register/page.tsx');
+
+  assert.match(registration, /const isSubmitting = useRef\(false\)/);
+  assert.match(registration, /if \(isSubmitting\.current\) return/);
+  assert.match(registration, /error\.code === 'over_email_send_rate_limit'/);
+  assert.match(registration, /Email confirmation is temporarily rate-limited/);
+  assert.match(registration, /errorMessage !== '\{\}'/);
+});
+
+test('confirmation resend handles rate limits and releases its loading state after failures', async () => {
+  const login = await read('../app/(auth)/login/page.tsx');
+
+  assert.match(login, /resendError\.code === 'over_email_send_rate_limit'/);
+  assert.match(login, /Too many confirmation email requests/);
+  assert.match(login, /finally \{\s*setResendingConfirmation\(false\)/);
+});
