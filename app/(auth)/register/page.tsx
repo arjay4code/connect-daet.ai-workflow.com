@@ -72,7 +72,7 @@ export default function RegisterPage() {
         const isRateLimited = error.status === 429
           || error.code === 'over_email_send_rate_limit'
           || /rate limit/i.test(errorMessage);
-        console.error('Registration request failed:', {
+        console.warn('Registration request failed:', {
           status: error.status ?? null,
           code: error.code ?? null,
           message: errorMessage,
@@ -94,7 +94,7 @@ export default function RegisterPage() {
       setPassword('');
       setConfirmPassword('');
     } catch (error) {
-      console.error('Unexpected registration request failure:', error);
+      console.warn('Unexpected registration request failure:', error);
       setStatus({
         type: 'error',
         message: 'We could not submit your registration right now. Please try again later.',

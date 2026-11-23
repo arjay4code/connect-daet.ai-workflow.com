@@ -14,6 +14,7 @@ export default function WorkflowNotificationControls({
   onNextPage,
   onMarkAllRead,
   onClearNotifications,
+  clearConfirmation = 'Permanently delete notifications addressed to your account? This removes notification records only, not submissions or workflow history.',
 }: {
   filter: NotificationFilter;
   onFilterChange: (filter: NotificationFilter) => void;
@@ -26,9 +27,10 @@ export default function WorkflowNotificationControls({
   onNextPage: () => void;
   onMarkAllRead: () => void;
   onClearNotifications: () => void;
+  clearConfirmation?: string;
 }) {
   const clearNotifications = () => {
-    if (window.confirm('Permanently delete notifications addressed to your account? This removes notification records only, not submissions or workflow history.')) {
+    if (window.confirm(clearConfirmation)) {
       onClearNotifications();
     }
   };

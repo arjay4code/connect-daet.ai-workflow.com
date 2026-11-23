@@ -56,6 +56,8 @@ test('registration prevents duplicate requests and explains Supabase email rate 
   assert.match(registration, /error\.code === 'over_email_send_rate_limit'/);
   assert.match(registration, /Email confirmation is temporarily rate-limited/);
   assert.match(registration, /errorMessage !== '\{\}'/);
+  assert.match(registration, /console\.warn\('Registration request failed:'/);
+  assert.doesNotMatch(registration, /console\.error\('Registration request failed:'/);
 });
 
 test('confirmation resend handles rate limits and releases its loading state after failures', async () => {
