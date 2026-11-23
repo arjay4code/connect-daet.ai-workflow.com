@@ -183,11 +183,14 @@ export default function AdminNotificationsPage() {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw userError || new Error('Sign in before deleting notifications.');
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('workflow_notifications')
         .delete()
-        .eq('recipient_id', user.id);
+        .select('id');
       if (error) throw error;
+      if (notifications.length > 0 && !data?.length) {
+        throw new Error('No notifications were deleted. Check the system-admin notification permissions.');
+      }
       window.dispatchEvent(new Event('workflow-notifications-changed'));
       setPage(0);
       await fetchNotifications(0);
@@ -209,7 +212,6 @@ export default function AdminNotificationsPage() {
         .from('workflow_notifications')
         .delete()
         .eq('id', notificationId)
-        .eq('recipient_id', user.id)
         .select('id')
         .maybeSingle();
       if (error) throw error;
@@ -271,6 +273,7 @@ export default function AdminNotificationsPage() {
         onNextPage={() => setPage((current) => current + 1)}
         onMarkAllRead={markAllAsRead}
         onClearNotifications={clearNotifications}
+        clearConfirmation="Permanently delete all workflow notifications? This removes notification records only, not submissions or workflow history."
       />
       {errorMessage && (
         <p role="alert" className="mb-4 rounded-xl border border-rejected-bg bg-rejected-bg/40 px-4 py-3 text-xs text-rejected-text">
@@ -339,17 +342,15 @@ export default function AdminNotificationsPage() {
                     <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                     {status.label}
                   </div>
-                  {note.is_own_notification && (
-                    <button
-                      type="button"
-                      onClick={() => void deleteNotification(note.notification_id)}
-                      disabled={actionBusy}
-                      aria-label={`Delete notification for ${note.file_name || 'submission'}`}
-                      className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50 max-md:h-11 max-md:w-full"
-                    >
-                      Delete notification
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => void deleteNotification(note.notification_id)}
+                    disabled={actionBusy}
+                    aria-label={`Delete notification for ${note.file_name || 'submission'}`}
+                    className="inline-flex h-10 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50 max-md:h-11 max-md:w-full"
+                  >
+                    Delete notification
+                  </button>
                   <Link
                     href={`/workflow/admin/submissions/${note.id}`}
                     className="inline-flex h-10 items-center gap-2 rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text max-md:h-11 max-md:w-full max-md:justify-center"

@@ -121,7 +121,7 @@ export default function LoginPage() {
         options: { emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation` },
       });
       if (resendError) {
-        console.error('Confirmation email resend failed:', {
+        console.warn('Confirmation email resend failed:', {
           status: resendError.status ?? null,
           code: resendError.code ?? null,
           message: resendError.message,
@@ -142,7 +142,7 @@ export default function LoginPage() {
       );
       setCanResendConfirmation(false);
     } catch (error) {
-      console.error('Unexpected confirmation email resend failure:', error);
+      console.warn('Unexpected confirmation email resend failure:', error);
       setError('We could not send a confirmation email right now. Please try again later.');
     } finally {
       setResendingConfirmation(false);

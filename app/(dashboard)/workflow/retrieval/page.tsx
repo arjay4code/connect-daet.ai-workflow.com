@@ -609,7 +609,7 @@ export default function DocumentRetrievalPage() {
                         setErrorMessage('');
                         setMessage('');
                       }}
-                      className="mt-0.5 accent-[#df7958] disabled:opacity-50"
+                      className="mt-0.5 accent-clay disabled:opacity-50"
                     />
                     Move the document to a new storage location
                   </label>
@@ -656,7 +656,7 @@ export default function DocumentRetrievalPage() {
                         checked={identityVerified}
                         disabled={identityVerificationDisabled}
                         onChange={(event) => setIdentityVerified(event.target.checked)}
-                        className="mt-0.5 accent-[#df7958] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="mt-0.5 accent-clay disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       I verified the requester’s identity and authorization in person.
                     </label>

@@ -98,7 +98,7 @@ export default function SetupPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-cream px-4 py-12">
+    <div className="workflow-system flex min-h-screen items-center justify-center bg-cream px-4 py-12">
       <div className="w-full max-w-[420px]">
         <header className="mb-8 text-center">
           <h1 className="font-serif text-[32px] leading-tight text-warm-text">Set up your account</h1>
