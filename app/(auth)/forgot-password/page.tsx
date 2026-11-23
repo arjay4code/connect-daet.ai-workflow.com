@@ -21,8 +21,11 @@ export default function ForgotPasswordPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (response.status === 404) {
-        setStatus({ type: 'error', message: "This email doesn't exist." });
+      if (response.status === 429) {
+        setStatus({
+          type: 'error',
+          message: 'Too many reset requests. Please wait and try again later.',
+        });
         return;
       }
       if (!response.ok) {
@@ -30,7 +33,7 @@ export default function ForgotPasswordPage() {
       }
       setStatus({
         type: 'success',
-        message: 'Password reset email sent. Check your inbox.',
+        message: 'If an account exists for this email, we will send a reset link. Check your inbox.',
       });
     } catch {
       setStatus({

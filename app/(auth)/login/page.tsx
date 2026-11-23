@@ -114,20 +114,39 @@ export default function LoginPage() {
     setResendingConfirmation(true);
     setConfirmationMessage('');
     setError('');
-    const { error: resendError } = await supabase.auth.resend({
-      type: 'signup',
-      email: normalizedEmail,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation` },
-    });
-    if (resendError) {
-      setError('We could not send a confirmation email right now. Please try again later.');
-    } else {
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback?flow=confirmation` },
+      });
+      if (resendError) {
+        console.error('Confirmation email resend failed:', {
+          status: resendError.status ?? null,
+          code: resendError.code ?? null,
+          message: resendError.message,
+        });
+        const isRateLimited = resendError.status === 429
+          || resendError.code === 'over_email_send_rate_limit'
+          || /rate limit/i.test(resendError.message);
+        setError(
+          isRateLimited
+            ? 'Too many confirmation email requests. Please wait and try again later.'
+            : 'We could not send a confirmation email right now. Please try again later.'
+        );
+        return;
+      }
+
       setConfirmationMessage(
         'If this address has an unverified account, a new confirmation email will be sent.'
       );
       setCanResendConfirmation(false);
+    } catch (error) {
+      console.error('Unexpected confirmation email resend failure:', error);
+      setError('We could not send a confirmation email right now. Please try again later.');
+    } finally {
+      setResendingConfirmation(false);
     }
-    setResendingConfirmation(false);
   };
 
   return (
