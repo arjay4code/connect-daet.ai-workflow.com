@@ -44,7 +44,7 @@ const fonts = {
 };
 
 // ─── Icons & small UI helpers ────────────────────────────────────────────────
-type IconName = 'arrow-left' | 'calendar' | 'chevron-right' | 'download' | 'file' | 'paperclip' | 'user';
+type IconName = 'arrow-left' | 'calendar' | 'chevron-right' | 'download' | 'eye' | 'file' | 'paperclip' | 'user';
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -52,6 +52,7 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     calendar: (<><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /></>),
     'chevron-right': <path d="m9 18 6-6-6-6" />,
     download: (<><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M5 20h14" /></>),
+    eye: (<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>),
     file: (<><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v5h5M9 13h6M9 17h6" /></>),
     paperclip: <path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9.5 9.5a2 2 0 0 1-3-3L15 6" />,
     user: (<><circle cx="12" cy="8" r="4" /><path d="M4 22a8 8 0 0 1 16 0" /></>),
@@ -913,12 +914,12 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
   const workflowStatus = (
     <section
       aria-labelledby={`workflow-status-${sub.id}`}
-      className="overflow-hidden rounded-2xl border border-warm-border bg-card"
+      className="order-2 overflow-hidden rounded-2xl border border-warm-border bg-card"
       role="status"
     >
       <header className="border-b border-warm-border px-5 py-4">
-        <h3 id={`workflow-status-${sub.id}`} className="text-sm font-bold text-warm-text">Workflow status</h3>
-        <p className="mt-0.5 text-[10px] text-muted-text">Current responsibility and office handling</p>
+        <h3 id={`workflow-status-${sub.id}`} className="text-sm font-bold text-warm-text">Where it stands</h3>
+        <p className="mt-0.5 text-[10px] text-muted-text">Who is responsible and what is happening now</p>
       </header>
       {isChangesRequested && (
         <div className="border-b border-pending-text/20 bg-pending-bg/50 px-5 py-4">
@@ -950,7 +951,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Currently handling</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Active work</p>
           {isChangesRequested ? (
             <p className="mt-1 text-xs font-semibold text-warm-text">Closed — waiting for the requestee</p>
           ) : pendingAssignments.length > 0 ? (
@@ -1134,13 +1135,10 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           </div>
         </div>
 
-        {/* ── Submission context ── */}
+        {/* ── Request details ── */}
         <section className="border-t border-warm-border px-5 py-6 md:px-7">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Submission context</p>
-              <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Request details</h2>
-            </div>
+            <h2 className="font-serif text-xl font-semibold text-warm-text">Request details</h2>
             <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
               {getWorkflowDocumentTypeLabel(sub.category ?? null, sub.other_document_type)}
             </span>
@@ -1178,28 +1176,25 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
           <div className="px-5 pt-4 md:px-7">
             <DocumentDownloadWarning />
           </div>
-          <div className={`flex items-center gap-3 px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
+          <div className={`flex items-center gap-3 bg-[#f8fafc] px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
             <button
               type="button"
               onClick={() => setPreviewOpen((open) => !open)}
               aria-expanded={previewOpen}
               aria-pressed={previewOpen}
               aria-controls={`document-preview-${sub.id}`}
-              className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+              className="group flex min-w-0 flex-1 items-center justify-between gap-4 rounded-lg text-left"
             >
               <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Document preview</span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Review the document</span>
                 <span className="mt-1 block truncate text-xs font-semibold text-warm-text">{sub.file_name}</span>
                 <span className="mt-1 block text-[10px] font-medium text-muted-text">
-                  {previewOpen ? 'Hide full document preview' : 'Select to view the full document'}
+                  {previewOpen ? 'Preview is open below' : 'Open the full document preview here'}
                 </span>
               </span>
-              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors transition-transform ${
-                previewOpen
-                  ? 'rotate-90 border-clay bg-clay-soft text-clay'
-                  : 'border-warm-border text-muted-text'
-              }`}>
-                <Icon name="chevron-right" size={16} />
+              <span className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-clay px-4 text-[11px] font-bold text-white transition-colors group-hover:bg-warm-text">
+                <Icon name="eye" size={15} />
+                {previewOpen ? 'Hide preview' : 'Preview document'}
               </span>
             </button>
             <button
@@ -1395,6 +1390,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                         actorRole: getActorRoleLabel(log.profiles?.role),
                         comments: log.comments,
                       }))}
+                      collapsible
                     />
                   </div>
                 )}
@@ -1404,6 +1400,7 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                 loading={revisionHistoryLoading}
                 error={revisionHistoryError}
                 isOfficeWorkspace={isOfficeRole(role) && !readOnly}
+                collapsible
               />
             </>
           ) : (

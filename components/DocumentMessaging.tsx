@@ -1323,7 +1323,7 @@ export default function DocumentMessaging({
 
       {/* ── Messages (70%) + Activity (30%) side by side ── */}
       <div className={`grid items-start gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] ${
-        workflowComposer?.isOfficeWorkspace ? 'order-2' : ''
+        workflowComposer?.isOfficeWorkspace ? 'order-3' : ''
       }`}>
         <section className="min-w-0 overflow-hidden rounded-2xl border border-warm-border bg-card">
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-border px-5 py-4 md:px-6">
@@ -1580,11 +1580,11 @@ export default function DocumentMessaging({
                 {isOfficeWorkspace ? 'Your office action' : 'Submission response'}
               </p>
               <h3 className="mt-1 font-serif text-xl font-semibold text-warm-text">
-                {isOfficeWorkspace ? 'Process this request' : 'Respond to this request'}
+                {isOfficeWorkspace ? 'Choose the next step' : 'Respond to this request'}
               </h3>
               <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
                 {isOfficeWorkspace
-                  ? 'Review the request, communicate as needed, and complete it when your office has finished processing.'
+                  ? 'Choose how your office will respond. The options below depend on the current workflow status.'
                   : 'Choose an available action and add a note when needed.'}
               </p>
             </header>
