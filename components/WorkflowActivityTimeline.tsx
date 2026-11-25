@@ -87,10 +87,12 @@ export default function WorkflowActivityTimeline({
   events,
   emptyMessage = 'No activity recorded yet.',
   showComments = true,
+  collapsible = false,
 }: {
   events: WorkflowActivityEvent[];
   emptyMessage?: string;
   showComments?: boolean;
+  collapsible?: boolean;
 }) {
   if (events.length === 0) {
     return <p className="text-[11px] text-muted-text">{emptyMessage}</p>;
@@ -110,10 +112,9 @@ export default function WorkflowActivityTimeline({
       : event
   );
 
-  return (
+  const timeline = (
     <div className="space-y-4">
       <div>
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Recent updates</p>
         <p className="mb-3 text-[10px] text-muted-text">
           {recentEvents.length === 0
             ? 'No updates have been recorded yet.'
@@ -134,5 +135,16 @@ export default function WorkflowActivityTimeline({
         </ol>
       </details>
     </div>
+  );
+
+  if (!collapsible) return timeline;
+
+  return (
+    <details open className="group">
+      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.1em] text-warm-text outline-none hover:text-clay focus-visible:ring-2 focus-visible:ring-clay/30">
+        Recent activity ({keyEvents.length})
+      </summary>
+      <div className="pt-4">{timeline}</div>
+    </details>
   );
 }

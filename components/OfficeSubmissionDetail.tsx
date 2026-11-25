@@ -45,7 +45,7 @@ const fonts = {
 };
 
 // ─── Icons & small UI helpers ────────────────────────────────────────────────
-type IconName = 'arrow-left' | 'calendar' | 'chevron-right' | 'download' | 'file' | 'paperclip' | 'user';
+type IconName = 'arrow-left' | 'calendar' | 'chevron-right' | 'download' | 'eye' | 'file' | 'paperclip' | 'user';
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -53,6 +53,7 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     calendar: (<><path d="M8 2v4M16 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /></>),
     'chevron-right': <path d="m9 18 6-6-6-6" />,
     download: (<><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M5 20h14" /></>),
+    eye: (<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>),
     file: (<><path d="M6 2h8l4 4v16H6z" /><path d="M14 2v5h5M9 13h6M9 17h6" /></>),
     paperclip: <path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9.5 9.5a2 2 0 0 1-3-3L15 6" />,
     user: (<><circle cx="12" cy="8" r="4" /><path d="M4 22a8 8 0 0 1 16 0" /></>),

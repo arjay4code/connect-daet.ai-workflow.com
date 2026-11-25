@@ -163,16 +163,19 @@ export default function WorkflowRevisionTimeline({
   loading = false,
   error = null,
   isOfficeWorkspace = false,
+  collapsible = false,
 }: {
   history: WorkflowRevisionHistory | null;
   loading?: boolean;
   error?: string | null;
   isOfficeWorkspace?: boolean;
+  collapsible?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
   const [previewingFile, setPreviewingFile] = useState<{
     file: WorkflowRevisionFile;
     signedUrl: string;
@@ -283,8 +286,22 @@ export default function WorkflowRevisionTimeline({
         <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
           Review each version of your request, including its files and any requested changes.
         </p>
+        {collapsible && (
+          <button
+            type="button"
+            aria-expanded={historyExpanded}
+            aria-controls="submission-version-history"
+            onClick={() => setHistoryExpanded((expanded) => !expanded)}
+            className="mt-3 inline-flex h-9 items-center rounded-full border border-warm-border px-4 text-[11px] font-semibold text-clay transition-colors hover:bg-sidebar"
+          >
+            {historyExpanded ? 'Hide version history' : `Show version history (${entries.length})`}
+          </button>
+        )}
       </header>
 
+      <div id="submission-version-history">
+      {(!collapsible || historyExpanded || loading || Boolean(error)) && (
+        <>
       {isOfficeWorkspace && history?.revisions.some((revision) => revision.files.length > 0) && (
         <div className="mb-4">
           <DocumentDownloadWarning />
@@ -400,6 +417,9 @@ export default function WorkflowRevisionTimeline({
           ))}
         </ol>
       )}
+        </>
+      )}
+      </div>
 
       {downloadError && (
         <p className="mt-3 text-xs text-rejected-text" role="alert">{downloadError}</p>
