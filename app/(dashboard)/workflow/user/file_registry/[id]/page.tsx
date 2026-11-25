@@ -26,6 +26,7 @@ import { loadWorkflowSubmissionDetail } from '@/lib/workflow/submission-detail';
 import { useSubmissionDetailRealtime } from '@/lib/workflow/useSubmissionDetailRealtime';
 import {
   getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
   isOfficeRole,
   OFFICE_CONFIG,
   type OfficeRole,
@@ -51,6 +52,7 @@ interface Submission {
   file_type: string;
   file_size: number;
   status: string;
+  request_title?: string | null;
   current_revision_id?: string | null;
   reopen_count?: number | null;
   category: string | null;
@@ -196,7 +198,17 @@ export default function UserFileDetail() {
       if (typeof id !== 'string') throw new Error('Could not determine which submission to load.');
       const detail = await loadWorkflowSubmissionDetail(supabase, id);
       const data = detail.submission;
-      setSub(data);
+      const { data: titleData, error: titleError } = await supabase
+        .from('workflow_submissions')
+        .select('request_title')
+        .eq('id', id)
+        .maybeSingle();
+      if (titleError || !titleData) {
+        const titleErrorMessage = titleError?.message ?? 'No matching submission was found.';
+        logClientError('Could not load the selected document title:', titleErrorMessage);
+        setActionError('We couldn’t load the selected document title. Refresh the page to try again.');
+      }
+      setSub({ ...data, request_title: titleData?.request_title ?? null });
       setClosureActor(detail.closureActor?.full_name ?? null);
       setAuditLogs(detail.activityLogs);
       setRouteSteps(detail.routeSteps);
@@ -833,6 +845,7 @@ export default function UserFileDetail() {
   };
 
   const previewingAttachment = attachments.find((attachment) => attachment.id === previewingAttachmentId);
+  const submissionTitle = getWorkflowSubmissionDisplayTitle(sub);
 
   return (
     <div className="mx-auto w-full max-w-[1500px] pb-8">
@@ -861,7 +874,7 @@ export default function UserFileDetail() {
           </span>
         </div>
         <h1 className={`${fonts.serif} max-w-4xl break-words text-2xl font-semibold leading-tight tracking-[-0.02em] text-warm-text md:text-3xl`}>
-          {sub.file_name}
+          {submissionTitle}
         </h1>
         <p className="mt-2 truncate text-[11px] text-muted-text" title={sub.file_name}>
           Request ID: {sub.id.split('-')[0]}

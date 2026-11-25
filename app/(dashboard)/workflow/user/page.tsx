@@ -17,7 +17,7 @@ import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
 import StatCard from '@/components/ui/StatCard';
 import { useWorkflowAccount } from '@/lib/workflow/role-context';
-import { isOfficeRole } from '@/lib/workflow/offices';
+import { getWorkflowSubmissionDisplayTitle, isOfficeRole } from '@/lib/workflow/offices';
 
 // ─── Styles & Fonts ──────────────────────────────────────────────────────────
 const fonts = {
@@ -35,7 +35,9 @@ interface Submission extends PreviewableFile {
   file_type: string;
   status: string;
   reopen_count?: number | null;
+  request_title?: string | null;
   category?: string;
+  other_document_type?: string | null;
   selected_office_role?: string | null;
   approver_comments: string;
   admin_comments: string;
@@ -144,7 +146,7 @@ function SubmissionCard({
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{sub.file_name}</h3>
+            <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{getWorkflowSubmissionDisplayTitle(sub)}</h3>
             {(sub.reopen_count ?? 0) > 0 && (
               <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
                 Resubmitted

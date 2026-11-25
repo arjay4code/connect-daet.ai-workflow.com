@@ -9,7 +9,10 @@ import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview'
 import FileBrowserSortSelect from '@/components/FileBrowserSortSelect';
 import WorkflowAuthoritySettings from '@/components/WorkflowAuthoritySettings';
 import WorkflowDocumentTypeSettings from '@/components/WorkflowDocumentTypeSettings';
-import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
+import {
+  getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
+} from '@/lib/workflow/offices';
 import { createClient } from '@/lib/supabase/client';
 import {
   ADMIN_DOCUMENT_PAGE_SIZE,
@@ -51,6 +54,7 @@ interface Submission {
   file_path: string | null;
   file_type: string | null;
   file_size: number | null;
+  request_title?: string | null;
   category: string | null;
   other_document_type: string | null;
   status: string;
@@ -109,7 +113,7 @@ async function fetchAllSubmissions(supabase: ReturnType<typeof createClient>) {
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await supabase
       .from('workflow_submissions')
-      .select('id, user_id, tracking_number, file_name, file_url, file_path, file_type, file_size, category, other_document_type, status, description, purpose, requested_action, intended_recipient, selected_office_role, created_at')
+      .select('id, user_id, tracking_number, file_name, file_url, file_path, file_type, file_size, request_title, category, other_document_type, status, description, purpose, requested_action, intended_recipient, selected_office_role, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error(`Could not load submitted documents: ${error.message}`);
@@ -347,7 +351,7 @@ export default function AdminDashboard() {
                         </span>
                         <span className="text-[11px] text-muted-text">ID: {submission.id.slice(0, 8)}</span>
                       </div>
-                      <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{submission.file_name}</h3>
+                      <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{getWorkflowSubmissionDisplayTitle(submission)}</h3>
                       <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>

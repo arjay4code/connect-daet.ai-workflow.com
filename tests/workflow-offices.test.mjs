@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   OFFICE_CONFIG,
+  getWorkflowSubmissionDisplayTitle,
   isOfficeRole,
 } from '../lib/workflow/offices.ts';
 
@@ -33,4 +34,20 @@ test('office seed migrations retain the protected Other custom request type', as
     const migration = await readFile(seedFile, 'utf8');
     assert.match(migration, /'Other'\)/, `${fileName} should seed the Other custom option`);
   }
+});
+
+test('submission cards prefer the saved request title and retain safe fallbacks', () => {
+  assert.equal(getWorkflowSubmissionDisplayTitle({
+    request_title: 'Request for Annual Tourism Statistics',
+    category: 'Other',
+    other_document_type: 'Old request type',
+    file_name: 'scan.jpg',
+  }), 'Request for Annual Tourism Statistics');
+  assert.equal(getWorkflowSubmissionDisplayTitle({
+    category: 'Request for Annual Tourism Statistics',
+    file_name: 'scan.jpg',
+  }), 'Request for Annual Tourism Statistics');
+  assert.equal(getWorkflowSubmissionDisplayTitle({
+    file_name: 'scan.jpg',
+  }), 'scan.jpg');
 });

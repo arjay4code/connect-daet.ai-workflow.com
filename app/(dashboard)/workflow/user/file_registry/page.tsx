@@ -7,7 +7,10 @@ import Link from 'next/link';
 import FileBrowserFilterSelect from '@/components/FileBrowserFilterSelect';
 import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview';
 import WorkflowRoutingPipeline from '@/components/WorkflowRoutingPipeline';
-import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
+import {
+  getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
+} from '@/lib/workflow/offices';
 import { getSubmissionStatusLabel } from '@/lib/workflow/status';
 import { matchesFileBrowserFilter, type FileBrowserFilter } from '@/lib/workflow/file-browser';
 import { useRoutePreviews } from '@/lib/workflow/useRoutePreviews';
@@ -34,6 +37,7 @@ interface FileSubmission extends PreviewSubmission {
   tracking_number?: string | null;
   created_at: string;
   status: string;
+  request_title?: string | null;
   category?: string | null;
   other_document_type?: string | null;
   file_size?: number | null;
@@ -202,7 +206,7 @@ export default function UserFileRegistry() {
                         </div>
 
                         <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">
-                          {file.file_name}
+                          {getWorkflowSubmissionDisplayTitle(file)}
                         </h3>
 
                         <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">

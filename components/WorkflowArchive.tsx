@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   getOfficeFileManagementPath,
   getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
   isOfficeRole,
   OFFICE_CONFIG,
   type OfficeRole,
@@ -199,7 +200,7 @@ export default function WorkflowArchive({
                   <span className="inline-flex rounded-md bg-clay-soft px-2 py-1 text-[10px] font-medium text-clay">
                     {getWorkflowDocumentTypeLabel(record.category, record.other_document_type)}
                   </span>
-                  <h3 className="mt-1 truncate text-sm font-semibold text-warm-text">{record.file_name}</h3>
+                  <h3 className="mt-1 truncate text-sm font-semibold text-warm-text">{getWorkflowSubmissionDisplayTitle(record)}</h3>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-text">
                     <span>{record.tracking_number || 'Tracking pending'}</span>
                     <span aria-hidden="true">·</span>
