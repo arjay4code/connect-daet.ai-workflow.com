@@ -370,7 +370,7 @@ begin
   where nullif(btrim(attachment.file_name), '') is not null
     and attachment.file_type is not null
     and attachment.file_size > 0
-    and attachment.file_size <= 10485760
+    and attachment.file_size <= 104857600
     and attachment.file_path like (
       target_submission_id::text || '/' || auth.uid()::text || '/'
         || target_assignment_id::text || '/' || message_id::text || '/%'

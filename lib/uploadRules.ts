@@ -3,7 +3,7 @@
 
 import { unzipSync, strFromU8 } from 'fflate';
 
-export const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB. Keep in sync with migration 4.
+export const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB.
 
 type Rule = { canonical: string; mimes: string[]; label: string };
 

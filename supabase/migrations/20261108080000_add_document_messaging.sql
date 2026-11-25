@@ -19,7 +19,7 @@ create table if not exists public.workflow_message_attachments (
   file_name text not null,
   file_path text not null unique,
   file_type text not null,
-  file_size bigint not null check (file_size > 0 and file_size <= 10485760),
+  file_size bigint not null check (file_size > 0 and file_size <= 104857600),
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -238,7 +238,7 @@ values (
   'workflow_message_attachments',
   'workflow_message_attachments',
   false,
-  10485760,
+  104857600,
   array[
     'application/pdf',
     'application/msword',

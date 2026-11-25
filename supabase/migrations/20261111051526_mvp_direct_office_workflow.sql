@@ -453,7 +453,7 @@ begin
   where nullif(btrim(attachment.file_name), '') is not null
     and attachment.file_type is not null
     and attachment.file_size > 0
-    and attachment.file_size <= 10485760
+    and attachment.file_size <= 104857600
     and attachment.file_path like (
       target_submission_id::text || '/' || auth.uid()::text || '/'
         || message_id::text || '/%'
@@ -1271,7 +1271,7 @@ begin
     or nullif(btrim(closure_file_type), '') is null
     or closure_file_size is null
     or closure_file_size < 1
-    or closure_file_size > 10485760
+    or closure_file_size > 104857600
   ) then
     raise exception 'Provide complete metadata for the optional closure file';
   end if;

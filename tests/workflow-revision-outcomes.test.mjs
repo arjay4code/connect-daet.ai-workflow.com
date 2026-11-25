@@ -42,7 +42,7 @@ test('revision manifests enforce storage, size, file-count, change, and primary 
   assert.match(migration, /from storage\.objects object[\s\S]*object\.bucket_id = 'workflow_uploads'/);
   assert.match(migration, /object\.metadata ->> 'size'/);
   assert.match(migration, /uploaded_object_size::bigint is distinct from manifest_item\.file_size/);
-  assert.match(migration, /file_size > 10485760/);
+  assert.match(migration, /file_size > 104857600/);
   assert.match(migration, /changed_file_count < 1/);
   assert.match(migration, /current_primary_count <> 1/);
   assert.match(migration, /previous_file_count <> cardinality\(seen_previous_file_ids\)/);

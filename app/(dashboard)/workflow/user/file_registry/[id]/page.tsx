@@ -119,7 +119,7 @@ interface UploadedRevisionFile {
   fileSize: number;
 }
 
-const MAX_REVISION_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_REVISION_FILE_SIZE = 100 * 1024 * 1024;
 
 const getRevisionFileError = (files: File[], allowZip = true): string | null => {
   const typeError = getWorkflowFilesTypeError(files, allowZip);
@@ -128,7 +128,7 @@ const getRevisionFileError = (files: File[], allowZip = true): string | null => 
   if (invalidName) return `"${invalidName.name}" must have a file name between 1 and 255 characters.`;
   const invalidFile = files.find((file) => file.size <= 0 || file.size > MAX_REVISION_FILE_SIZE);
   if (!invalidFile) return null;
-  return `"${invalidFile.name}" must be larger than 0 bytes and no larger than 10 MB.`;
+  return `"${invalidFile.name}" must be larger than 0 bytes and no larger than 100 MB.`;
 };
 
 const getErrorMessage = (error: unknown, fallback: string): string =>

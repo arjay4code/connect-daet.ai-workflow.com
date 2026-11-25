@@ -15,6 +15,8 @@ const MIME_TYPES_BY_EXTENSION = {
 
 export type WorkflowFileExtension = keyof typeof MIME_TYPES_BY_EXTENSION;
 
+export const MAX_WORKFLOW_FILE_BYTES = 100 * 1024 * 1024;
+
 const DOCUMENT_EXTENSIONS: WorkflowFileExtension[] = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'jpg', 'jpeg', 'png',
 ];
@@ -53,6 +55,14 @@ export function getWorkflowFilesTypeError(files: File[], allowZip = true): strin
   for (const file of files) {
     const error = getWorkflowFileTypeError(file.name, allowZip);
     if (error) return error;
+  }
+  return null;
+}
+
+export function getWorkflowFilesSizeError(files: File[]): string | null {
+  const oversizedFile = files.find((file) => file.size > MAX_WORKFLOW_FILE_BYTES);
+  if (oversizedFile) {
+    return `"${oversizedFile.name}" is larger than the 100 MB per-file limit.`;
   }
   return null;
 }
