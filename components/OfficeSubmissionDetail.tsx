@@ -562,6 +562,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     && routeSteps.some((step) => step.office_role === role && step.status !== 'skipped');
   const selectedOfficeRole = sub.selected_office_role ?? null;
   const initialDestinationRole = sub.initial_destination_role ?? null;
+  const senderRole = sender?.role ?? null;
+  const originatingOfficeRole = isOfficeRole(senderRole) ? senderRole : null;
   const responsibleOfficeRole = selectedOfficeRole
     ?? (isOfficeRole(initialDestinationRole) ? initialDestinationRole : null);
   const isResponsibleOffice = isOfficeRole(role) && role === responsibleOfficeRole;
@@ -717,7 +719,11 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     actionsByRecipient.submitter = responsibleOfficeActions;
     for (const officeRole of Object.keys(OFFICE_CONFIG)
       .filter(isOfficeRole)
-      .filter((office) => office !== role && office !== responsibleOfficeRole)) {
+      .filter((office) =>
+        office !== role
+        && office !== responsibleOfficeRole
+        && office !== originatingOfficeRole
+      )) {
       const targetAssignment = pendingAssignments.find(
         (step) => step.office_role === officeRole && step.status === 'pending'
       );
@@ -811,7 +817,11 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     ];
     for (const officeRole of Object.keys(OFFICE_CONFIG)
       .filter(isOfficeRole)
-      .filter((office) => office !== role && office !== responsibleOfficeRole)) {
+      .filter((office) =>
+        office !== role
+        && office !== responsibleOfficeRole
+        && office !== originatingOfficeRole
+      )) {
       const recipientValue = `office:${officeRole}`;
       const currentDocumentReason = !sub.file_path
         ? 'Current document is unavailable to send to another office'

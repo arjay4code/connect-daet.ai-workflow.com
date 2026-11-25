@@ -116,7 +116,15 @@ export async function proxy(req: NextRequest) {
     return redirectWithAuthCookies(destination)
   }
 
-  if (pathname.startsWith('/workflow/user') && role !== 'submitter') {
+  const isOfficeRequesterPath = pathname === '/workflow/user'
+    || pathname === '/workflow/user/upload'
+    || /^\/workflow\/user\/file_registry\/[^/]+$/.test(pathname)
+
+  if (
+    pathname.startsWith('/workflow/user')
+    && role !== 'submitter'
+    && !(isOfficeRole(role) && isOfficeRequesterPath)
+  ) {
     return redirectWithAuthCookies(new URL(getRoleHomePath(role), req.url))
   }
 

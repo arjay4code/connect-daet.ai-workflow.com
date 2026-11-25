@@ -13,6 +13,7 @@ import {
   SUBMISSION_DESTINATION_CONFIG,
   TOURISM_OFFICE_ROLE,
   type SubmissionDestinationRole,
+  isOfficeRole,
 } from '@/lib/workflow/offices';
 import {
   fetchWorkflowOfficeDocumentTypes,
@@ -21,6 +22,7 @@ import {
 import { getSupportingDocumentSuggestions } from '@/lib/workflow/supporting-document-suggestions';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/Icon';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
 
 type UploadMessage = {
   text: string;
@@ -72,6 +74,9 @@ function getUploadErrorText(error: unknown): string {
 export default function UploadPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { role, ready: accountReady } = useWorkflowAccount();
+  const isOfficeRequester = isOfficeRole(role);
+  const canCreateRequest = role === 'submitter' || isOfficeRequester;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const otherDocumentTypeRef = useRef<HTMLTextAreaElement>(null);
@@ -105,6 +110,8 @@ export default function UploadPage() {
     if (!selectedOfficeRole || !category) return [];
     return getSupportingDocumentSuggestions(selectedOfficeRole, category);
   }, [category, selectedOfficeRole]);
+  const destinationOffices = Object.entries(SUBMISSION_DESTINATION_CONFIG)
+    .filter(([officeRole]) => !isOfficeRequester || officeRole !== role);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +146,14 @@ export default function UploadPage() {
       cancelled = true;
     };
   }, [documentTypesReloadKey, selectedOfficeRole, supabase]);
+
+  useEffect(() => {
+    if (!isOfficeRequester || selectedOfficeRole !== role) return;
+    setSelectedOfficeRole('');
+    setCategory('');
+    setOtherDocumentType('');
+    setSelectionNotice('Choose an office other than your own to review this request.');
+  }, [isOfficeRequester, role, selectedOfficeRole]);
 
   useEffect(() => {
     return () => {
@@ -244,6 +259,13 @@ export default function UploadPage() {
 
   const handleUpload = async () => {
     if (uploading || checkingAttachments) return;
+    if (!accountReady || !canCreateRequest) {
+      setMessage({
+        text: 'Only an active submitter or workflow office account can create a request.',
+        type: 'error',
+      });
+      return;
+    }
     if (!description.trim()) {
       setMessage({
         text: 'Enter a brief summary describing your request or the document before submitting.',
@@ -254,6 +276,7 @@ export default function UploadPage() {
     if (
       !file
       || !selectedOfficeRole
+      || (isOfficeRequester && selectedOfficeRole === role)
       || !category
       || !availableDocumentTypes.includes(category)
       || (category === 'Other' && !otherDocumentType.trim())
@@ -397,6 +420,13 @@ export default function UploadPage() {
   const fieldClass =
     'h-11 w-full rounded-xl border border-warm-border bg-card px-4 text-sm text-warm-text outline-none transition-colors placeholder:text-muted-text/70 focus:border-clay focus:ring-2 focus:ring-clay/10';
   const handleDestinationChange = (nextOfficeRole: SubmissionDestinationRole | '') => {
+    if (isOfficeRequester && nextOfficeRole === role) {
+      setMessage({
+        text: 'Choose an office other than your own to review this request.',
+        type: 'error',
+      });
+      return;
+    }
     setSelectedOfficeRole(nextOfficeRole);
     if (category || otherDocumentType) {
       setSelectionNotice('The document type was cleared because it depends on the selected office.');
@@ -406,6 +436,14 @@ export default function UploadPage() {
     setCategory('');
     setOtherDocumentType('');
   };
+
+  if (accountReady && !canCreateRequest) {
+    return (
+      <div role="alert" className="rounded-2xl border border-warm-border bg-card p-6 text-sm text-warm-text">
+        Only submitters and workflow offices can create a workflow request.
+      </div>
+    );
+  }
 
   return (
     <div className="ui-fade-up relative mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-warm-border bg-card p-5 shadow-sm sm:p-8">
@@ -423,10 +461,12 @@ export default function UploadPage() {
               Document intake
             </p>
             <h1 className="text-2xl font-bold leading-tight text-warm-text sm:text-[28px]">
-              Submit a New Document
+              {isOfficeRequester ? 'Submit a New Request' : 'Submit a New Document'}
             </h1>
             <p className="mt-2 text-xs text-muted-text">
-              Provide the request details and upload the document for review.
+              {isOfficeRequester
+                ? 'Your office is recorded as the requester. Choose another office to review your request.'
+                : 'Provide the request details and upload the document for review.'}
             </p>
           </div>
         </div>
@@ -452,12 +492,14 @@ export default function UploadPage() {
             required
           >
             <option value="" disabled>Select the office that should receive this submission</option>
-            {Object.entries(SUBMISSION_DESTINATION_CONFIG).map(([officeRole, office]) => (
+            {destinationOffices.map(([officeRole, office]) => (
               <option key={officeRole} value={officeRole}>{office.label}</option>
             ))}
           </select>
           <p className="mt-2 text-[11px] leading-relaxed text-muted-text">
-            {selectedOfficeRole === TOURISM_OFFICE_ROLE
+            {isOfficeRequester
+              ? 'Requests from your office use the same review and tracking workflow. The originating office is identified from your signed-in account.'
+              : selectedOfficeRole === TOURISM_OFFICE_ROLE
               ? 'Your submission goes directly to the Daet Tourism Office for review and municipal-office assignment.'
               : 'Your submission goes directly to this office. It does not need Tourism Officer review first.'}
           </p>
@@ -737,9 +779,9 @@ export default function UploadPage() {
         <button
           type="button"
           onClick={handleUpload}
-          disabled={uploading || checkingAttachments || !file}
+          disabled={uploading || checkingAttachments || !file || !accountReady || !canCreateRequest}
           className={`inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-full px-7 text-xs font-semibold transition-colors sm:w-auto ${
-            uploading || checkingAttachments || !file
+            uploading || checkingAttachments || !file || !accountReady || !canCreateRequest
               ? 'cursor-not-allowed bg-sidebar text-muted-text'
               : 'bg-clay text-white hover:bg-warm-text'
           }`}
@@ -753,7 +795,7 @@ export default function UploadPage() {
             </>
           ) : (
             <>
-              <Icon name="send" size={15} /> Submit document
+              <Icon name="send" size={15} /> {isOfficeRequester ? 'Submit request' : 'Submit document'}
             </>
           )}
         </button>

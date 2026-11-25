@@ -237,10 +237,10 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
   ) => {
     event.preventDefault();
     try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw userError || new Error('Sign in before opening notifications.');
       if (notification.is_unread) {
         setErrorMessage(null);
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) throw userError || new Error('Sign in before opening notifications.');
         const { error } = await supabase
           .from('workflow_notifications')
           .update({ read_at: new Date().toISOString() })
@@ -252,7 +252,9 @@ export default function ApproverNotificationsPage({ role: officeRole }: { role: 
         ));
         window.dispatchEvent(new Event('workflow-notifications-changed'));
       }
-      router.push(`${fileManagementPath}/${notification.id}${adminOfficeQuery}`);
+      router.push(notification.user_id === user.id
+        ? `/workflow/user/file_registry/${notification.id}`
+        : `${fileManagementPath}/${notification.id}${adminOfficeQuery}`);
     } catch (error) {
       setErrorMessage(getErrorMessage(error, 'Could not open this notification.'));
     }

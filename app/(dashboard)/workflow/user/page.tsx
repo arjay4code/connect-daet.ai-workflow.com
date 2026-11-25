@@ -16,6 +16,8 @@ import Icon from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
 import StatCard from '@/components/ui/StatCard';
+import { useWorkflowAccount } from '@/lib/workflow/role-context';
+import { isOfficeRole } from '@/lib/workflow/offices';
 
 // ─── Styles & Fonts ──────────────────────────────────────────────────────────
 const fonts = {
@@ -197,6 +199,8 @@ function SubmissionCard({
 
 // ─── Main Dashboard Page ─────────────────────────────────────────────────────
 export default function WorkflowDashboard() {
+  const { role } = useWorkflowAccount();
+  const isOfficeRequester = isOfficeRole(role);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [rewardBalance, setRewardBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -229,19 +233,23 @@ export default function WorkflowDashboard() {
       if (error) logClientError('Fetch error:', error);
       if (data) setSubmissions(data);
 
-      const { data: rewardEntries, error: rewardError } = await withTimeout(
-        supabase
-          .from('workflow_submission_reward_ledger')
-          .select('points')
-          .eq('user_id', user.id),
-        10000,
-        'Fetching reward balance'
-      );
-      if (rewardError) {
-        logClientError('Reward balance fetch error:', rewardError);
-        setRewardBalance(null);
+      if (role === 'submitter') {
+        const { data: rewardEntries, error: rewardError } = await withTimeout(
+          supabase
+            .from('workflow_submission_reward_ledger')
+            .select('points')
+            .eq('user_id', user.id),
+          10000,
+          'Fetching reward balance'
+        );
+        if (rewardError) {
+          logClientError('Reward balance fetch error:', rewardError);
+          setRewardBalance(null);
+        } else {
+          setRewardBalance((rewardEntries ?? []).reduce((total, entry) => total + entry.points, 0));
+        }
       } else {
-        setRewardBalance((rewardEntries ?? []).reduce((total, entry) => total + entry.points, 0));
+        setRewardBalance(null);
       }
     } catch (err) {
       logClientError('Dashboard load failed:', err);
@@ -249,7 +257,7 @@ export default function WorkflowDashboard() {
       // Always stop the "Syncing records..." spinner, even if something failed or timed out
       setLoading(false);
     }
-  }, [supabase]);
+  }, [role, supabase]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useWorkflowAutoRefresh(supabase, fetchAll);
@@ -295,35 +303,37 @@ export default function WorkflowDashboard() {
         <PageHero
           eyebrow="Your workspace"
           icon="sparkles"
-          title="My submissions"
+          title={isOfficeRequester ? 'My requests' : 'My submissions'}
           description={<>Signed in as <span className="text-warm-text">{user?.email}</span></>}
           actions={
             <a
               href="/workflow/user/upload"
               className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-clay px-6 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-warm-text max-md:w-full"
             >
-              <Icon name="plus" size={16} className="transition-transform duration-300 group-hover:rotate-90" /> New submission
+              <Icon name="plus" size={16} className="transition-transform duration-300 group-hover:rotate-90" /> {isOfficeRequester ? 'New request' : 'New submission'}
             </a>
           }
         />
 
-        <div className="ui-stagger mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 max-md:mb-6 max-md:gap-3">
-          <StatCard as="div" label="Logged files" value={stats[0].value} hint="All your submitted documents" icon="files" tone="primary" loading={loading} />
+        <div className={`ui-stagger mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 ${isOfficeRequester ? 'xl:grid-cols-2' : 'xl:grid-cols-3'} max-md:mb-6 max-md:gap-3`}>
+          <StatCard as="div" label={isOfficeRequester ? 'Requests submitted' : 'Logged files'} value={stats[0].value} hint={isOfficeRequester ? 'Requests created by your office' : 'All your submitted documents'} icon="files" tone="primary" loading={loading} />
           <StatCard as="div" label="Cleared" value={stats[1].value} hint="Processed and completed" icon="file-check" tone="approved" loading={loading} />
-          <StatCard
-            as="div"
-            label="Reward balance"
-            value={rewardBalance === null ? 'Unavailable' : <><AnimatedNumber value={rewardBalance} /> <span className="text-lg text-muted-text">pts</span></>}
-            hint="Earned for eligible submissions"
-            icon="gift"
-            tone="pending"
-            loading={loading}
-          />
+          {!isOfficeRequester && (
+            <StatCard
+              as="div"
+              label="Reward balance"
+              value={rewardBalance === null ? 'Unavailable' : <><AnimatedNumber value={rewardBalance} /> <span className="text-lg text-muted-text">pts</span></>}
+              hint="Earned for eligible submissions"
+              icon="gift"
+              tone="pending"
+              loading={loading}
+            />
+          )}
         </div>
 
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-warm-text">Recent submissions</h2>
+            <h2 className="text-sm font-semibold text-warm-text">{isOfficeRequester ? 'Recent requests' : 'Recent submissions'}</h2>
             <span className="text-[11px] text-muted-text">
               Showing {dashboardSubmissions.length} of {filteredSubmissions.length}
             </span>
@@ -332,7 +342,7 @@ export default function WorkflowDashboard() {
             href="/workflow/user/file_registry"
             className="text-[11px] font-semibold text-clay underline underline-offset-4"
           >
-            View all submissions
+            {isOfficeRequester ? 'View all requests' : 'View all submissions'}
           </Link>
         </div>
 
