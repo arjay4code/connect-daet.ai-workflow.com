@@ -15,6 +15,7 @@ export interface Submission {
   file_path?: string | null;
   file_type: string;
   file_size?: number | null;
+  request_title?: string | null;
   category?: string | null;
   other_document_type?: string | null;
   status: string;

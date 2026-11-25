@@ -10,7 +10,10 @@ import FilePreview, { downloadFile, getFileUrl } from '@/components/FilePreview'
 import FileBrowserSortSelect from '@/components/FileBrowserSortSelect';
 import { useSubmissions } from '@/hooks/useSubmissions';
 import { createClient } from '@/lib/supabase/client';
-import { getWorkflowDocumentTypeLabel } from '@/lib/workflow/offices';
+import {
+  getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
+} from '@/lib/workflow/offices';
 import {
   ADMIN_DOCUMENT_PAGE_SIZE,
   matchesFileBrowserFilter,
@@ -201,7 +204,7 @@ export default function SubmissionsPage() {
                       </span>
                       <span className="text-[11px] text-muted-text">ID: {sub.id.slice(0, 8)}</span>
                     </div>
-                    <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{sub.file_name}</h3>
+                    <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{getWorkflowSubmissionDisplayTitle(sub)}</h3>
                     <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                       <div className="flex flex-col">
                         <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>

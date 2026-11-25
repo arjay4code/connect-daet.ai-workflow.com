@@ -50,6 +50,19 @@ export function getWorkflowSubmissionTitle(
   return normalizedFileName || 'Untitled document';
 }
 
+export function getWorkflowSubmissionDisplayTitle(submission: {
+  request_title?: string | null;
+  category?: string | null;
+  other_document_type?: string | null;
+  file_name?: string | null;
+}) {
+  const requestType = submission.request_title?.trim()
+    || (submission.category
+      ? getWorkflowDocumentTypeLabel(submission.category, submission.other_document_type)
+      : null);
+  return getWorkflowSubmissionTitle(requestType, submission.file_name);
+}
+
 export const OFFICE_RESPONSIBILITIES = {
   mandatory_approval_clearance: 'Mandatory Approval/Clearance',
   evaluation_verification: 'Evaluation/Verification',

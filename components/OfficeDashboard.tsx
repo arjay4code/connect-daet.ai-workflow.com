@@ -11,6 +11,7 @@ import { useWorkflowAutoRefresh } from '@/lib/workflow/useWorkflowAutoRefresh';
 import { useWorkflowRole } from '@/lib/workflow/role-context';
 import {
   getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionDisplayTitle,
   getOfficeArchivePath,
   getOfficeFileManagementPath,
   OFFICE_CONFIG,
@@ -41,6 +42,7 @@ interface Submission {
   file_path: string | null;
   file_type: string | null;
   file_size: number | null;
+  request_title?: string | null;
   category: string | null;
   other_document_type: string | null;
   status: string;
@@ -223,7 +225,7 @@ export default function OfficeDashboard({
 
     const { data, error: fetchError } = await supabase
       .from('workflow_submissions')
-      .select('id, tracking_number, file_name, file_url, file_path, file_type, file_size, category, other_document_type, status, reopen_count, created_at, selected_office_role, initial_destination_role')
+      .select('id, tracking_number, file_name, file_url, file_path, file_type, file_size, request_title, category, other_document_type, status, reopen_count, created_at, selected_office_role, initial_destination_role')
       .in('id', submissionIds)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -401,7 +403,7 @@ export default function OfficeDashboard({
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-semibold text-warm-text">{submission.file_name}</h3>
+                          <h3 className="truncate text-sm font-semibold text-warm-text">{getWorkflowSubmissionDisplayTitle(submission)}</h3>
                           {(submission.reopen_count ?? 0) > 0 && (
                             <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">
                               Resubmitted
@@ -509,7 +511,7 @@ export default function OfficeDashboard({
                               <span className="rounded-full bg-review-bg px-2.5 py-1 text-[9px] font-semibold text-review-text">Resubmitted</span>
                             )}
                           </div>
-                          <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{submission.file_name}</h3>
+                          <h3 className="truncate text-sm font-semibold text-warm-text group-hover:text-clay">{getWorkflowSubmissionDisplayTitle(submission)}</h3>
                           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                             <div className="flex flex-col">
                               <span className="text-[10px] font-medium text-muted-text">Date uploaded</span>

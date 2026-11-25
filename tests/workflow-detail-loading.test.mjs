@@ -215,12 +215,18 @@ test('the detail RPC includes the route, activity, and revision data in one auth
   assert.match(migration, /case when submission\.user_id = auth\.uid\(\) then null else profile\.email end/);
   assert.match(migration, /or step\.assigned_by_role = actor_role/);
   assert.match(detailLoader, /supabase\.rpc\('get_workflow_submission_detail'/);
-  for (const page of pages.slice(0, 2)) {
+  for (const [index, page] of pages.slice(0, 2).entries()) {
     assert.match(page, /loadWorkflowSubmissionDetail/);
-    const fetcher = page.match(/const fetch(?:Submission|Details) = useCallback\(async[\s\S]*?\n  \}, \[id, supabase\]\);/)?.[0];
+    const fetcher = page.match(/const fetch(?:Submission|Details) = useCallback\(async[\s\S]*?\n  \}, \[[^\]]+\]\);/)?.[0];
     assert.ok(fetcher, 'Each detail page should have a measurable data-loader boundary.');
     assert.equal((fetcher.match(/loadWorkflowSubmissionDetail/g) ?? []).length, 1);
-    assert.doesNotMatch(fetcher, /\.from\('workflow_submissions'\)|\.from\('workflow_routing_plans'\)|\.from\('workflow_routing_steps'\)|\.from\('workflow_audit_logs'\)/);
+    if (index === 0) {
+      assert.match(fetcher, /\.from\('workflow_submissions'\)\s*\.select\('request_title'\)/);
+      assert.equal((fetcher.match(/\.from\('workflow_submissions'\)/g) ?? []).length, 1);
+    } else {
+      assert.doesNotMatch(fetcher, /\.from\('workflow_submissions'\)/);
+    }
+    assert.doesNotMatch(fetcher, /\.from\('workflow_routing_plans'\)|\.from\('workflow_routing_steps'\)|\.from\('workflow_audit_logs'\)/);
   }
   assert.equal((pages[0].match(/setAttachments\(detail\.supportingFiles\)/g) ?? []).length, 1);
   assert.equal((pages[1].match(/setAttachments\(detail\.supportingFiles\)/g) ?? []).length, 1);
