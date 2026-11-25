@@ -15,7 +15,7 @@ import CloseSubmissionDialog from '@/components/CloseSubmissionDialog';
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENTS = 5;
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_SIZE = 100 * 1024 * 1024;
 const MESSAGE_FIELDS = 'id, submission_id, routing_step_id, sender_id, sender_name, sender_role, body, created_at';
 const EMPTY_ASSIGNMENT_CONVERSATIONS: AssignmentConversation[] = [];
 
@@ -77,7 +77,7 @@ function AttachControl({ id, inputRef, disabled, limit, onFiles, compact = false
       </label>
       {!compact && (
         <span className="hidden text-[10px] leading-tight text-muted-text sm:block">
-          Up to {limit} files · 10 MB each
+          Up to {limit} files · 100 MB each
         </span>
       )}
     </div>
@@ -716,7 +716,7 @@ export default function DocumentMessaging({
     }
     const oversizedFile = combinedFiles.find((file) => file.size > MAX_ATTACHMENT_SIZE);
     if (oversizedFile) {
-      setError(`"${oversizedFile.name}" is larger than the 10 MB per-file limit.`);
+      setError(`"${oversizedFile.name}" is larger than the 100 MB per-file limit.`);
       return;
     }
 
@@ -743,7 +743,7 @@ export default function DocumentMessaging({
     }
     const oversizedFile = combinedFiles.find((file) => file.size > MAX_ATTACHMENT_SIZE);
     if (oversizedFile) {
-      setConversationError(`"${oversizedFile.name}" is larger than the 10 MB per-file limit.`);
+      setConversationError(`"${oversizedFile.name}" is larger than the 100 MB per-file limit.`);
       return;
     }
     setConversationFiles(combinedFiles);

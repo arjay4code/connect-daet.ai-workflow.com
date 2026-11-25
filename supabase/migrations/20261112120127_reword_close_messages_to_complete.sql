@@ -40,7 +40,7 @@ begin
     or nullif(btrim(closure_file_type), '') is null
     or closure_file_size is null
     or closure_file_size < 1
-    or closure_file_size > 10485760
+    or closure_file_size > 104857600
   ) then
     raise exception 'Provide complete metadata for the optional completion document';
   end if;

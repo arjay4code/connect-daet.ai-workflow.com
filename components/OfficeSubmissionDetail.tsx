@@ -483,8 +483,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       if (closureFile) {
         const fileError = getWorkflowFilesTypeError([closureFile], false);
         if (fileError) throw new Error(fileError);
-        if (closureFile.size > 10 * 1024 * 1024) {
-          throw new Error('The completion document must be 10 MB or smaller.');
+        if (closureFile.size > 100 * 1024 * 1024) {
+          throw new Error('The completion document must be 100 MB or smaller.');
         }
         if (!accountUserId) throw new Error('You must sign in to complete this submission.');
         userId = accountUserId;
@@ -740,8 +740,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       recipients.push({ value: recipientValue, label: OFFICE_CONFIG[officeRole].label });
       const currentDocumentReason = !sub.file_path
         ? 'Current document is unavailable to send to another office'
-        : sub.file_size > 10 * 1024 * 1024
-          ? 'Current document exceeds the 10 MB limit for sending to another office'
+        : sub.file_size > 100 * 1024 * 1024
+          ? 'Current document exceeds the 100 MB limit for sending to another office'
           : undefined;
       actionsByRecipient[recipientValue] = [
         {
@@ -829,8 +829,8 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
       const recipientValue = `office:${officeRole}`;
       const currentDocumentReason = !sub.file_path
         ? 'Current document is unavailable to send to another office'
-        : sub.file_size > 10 * 1024 * 1024
-          ? 'Current document exceeds the 10 MB limit for sending to another office'
+        : sub.file_size > 100 * 1024 * 1024
+          ? 'Current document exceeds the 100 MB limit for sending to another office'
           : undefined;
       recipients.push({ value: recipientValue, label: OFFICE_CONFIG[officeRole].label });
       actionsByRecipient[recipientValue] = [
@@ -1038,9 +1038,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
 
       <section
         aria-labelledby={`next-step-${sub.id}`}
-        className="mb-5 flex flex-col gap-4 rounded-2xl border border-clay bg-clay-soft p-5 md:flex-row md:items-center md:justify-between"
+        className="mb-5 flex flex-col gap-4 rounded-2xl border border-clay bg-clay-soft p-5 lg:flex-row lg:items-start lg:justify-between"
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Your next step</p>
           <h2 id={`next-step-${sub.id}`} className="mt-1 text-base font-bold text-warm-text">
             {readOnly
@@ -1063,46 +1063,22 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                   : 'Review the available action options, then open the conversation panel to submit your decision.'}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
-          {readOnly ? (
-            <span className="text-[11px] font-semibold text-muted-text">Read-only access</span>
-          ) : requiresReviewStart ? (
-            <button
-              type="button"
-              onClick={() => void startOfficeReview()}
-              disabled={updating || (!isResponsibleOffice && Boolean(routeStateError))}
-              className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-bold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {updating ? 'Starting...' : 'Start processing'}
-            </button>
-          ) : officeReview && !composerClosed && (actionsByRecipient[initialRecipient] ?? []).some((action) => !action.unavailableReason) ? (
-            <>
-              <div className="flex flex-wrap justify-end gap-1.5">
-                {(actionsByRecipient[initialRecipient] ?? [])
-                  .filter((action) => !composerClosed && !action.unavailableReason)
-                  .map((action) => (
-                    <span
-                      key={action.value}
-                      className="rounded-full border border-warm-border bg-card px-2.5 py-1 text-[10px] font-semibold text-warm-text"
-                    >
-                      {action.label}
-                    </span>
-                  ))}
-              </div>
+        {(readOnly || requiresReviewStart) && (
+          <div className="flex w-full min-w-0 flex-col items-start gap-2 lg:w-auto lg:items-end">
+            {readOnly ? (
+              <span className="text-[11px] font-semibold text-muted-text">Read-only access</span>
+            ) : (
               <button
                 type="button"
-                onClick={() => setActiveDetailTab('conversation')}
-                className="text-[11px] font-bold text-clay underline-offset-2 hover:underline"
+                onClick={() => void startOfficeReview()}
+                disabled={updating || (!isResponsibleOffice && Boolean(routeStateError))}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-bold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Open conversation actions
+                {updating ? 'Starting...' : 'Start processing'}
               </button>
-            </>
-          ) : (
-            <span className="text-[11px] font-semibold text-muted-text">
-              No workflow actions are available here.
-            </span>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1162,6 +1138,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
               </span>
             </button>
           )}
+        </div>
+        <div className="px-5 pt-4 md:px-7">
+          <DocumentDownloadWarning />
         </div>
         {attachments.length > 0 && (
           <div
@@ -1249,14 +1228,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
         )}
           <div id={`document-preview-${sub.id}`} hidden={!previewOpen}>
             {previewOpen && (
-              <>
-                <div className="px-5 pt-4 md:px-7">
-                  <DocumentDownloadWarning />
-                </div>
-                <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
-                  <FilePreview file={sub} warnOnDownload />
-                </div>
-              </>
+              <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
+                <FilePreview file={sub} warnOnDownload />
+              </div>
             )}
           </div>
       </section>
@@ -1480,42 +1454,6 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                   </p>
                 </div>
               )}
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-border px-5 py-4">
-              <div>
-                <h2 className="text-sm font-bold text-warm-text">Request details</h2>
-                <p className="mt-0.5 text-[10px] text-muted-text">Information provided with the submission</p>
-              </div>
-              <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
-                {getWorkflowDocumentTypeLabel(sub.category ?? null, sub.other_document_type)}
-              </span>
-            </header>
-            <div className="space-y-4 p-5">
-              <div>
-                <Label>Intended recipient</Label>
-                <p className="text-xs font-semibold text-warm-text">{sub.intended_recipient || 'Not specified'}</p>
-              </div>
-              <div>
-                <Label>Purpose</Label>
-                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
-                  {sub.purpose || 'No purpose provided.'}
-                </p>
-              </div>
-              <div>
-                <Label>Requested action</Label>
-                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
-                  {sub.requested_action || 'No specific action provided.'}
-                </p>
-              </div>
-              <div>
-                <Label>Sender notes</Label>
-                <blockquote className="whitespace-pre-wrap break-words border-l-2 border-clay pl-3 font-serif text-[14px] italic leading-relaxed text-warm-text/75">
-                  {sub.description || 'No description provided.'}
-                </blockquote>
-              </div>
             </div>
           </section>
 

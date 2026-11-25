@@ -105,3 +105,9 @@ test('existing recommendation forwarding remains unchanged in the interface', ()
   assert.match(officeDetail, /for a recommendation/);
   assert.match(migration, /Recommendation/);
 });
+
+test('workflow action previews are kept out of the next-step card', () => {
+  assert.doesNotMatch(officeDetail, /hasAvailableForwardAction|nextStepActions|<ActionIcon name=\{actionIcon\}/);
+  assert.match(documentMessaging, /const actionDropdown = workflowComposer \?/);
+  assert.match(officeDetail, /updating \? 'Starting\.\.\.' : 'Start processing'/);
+});

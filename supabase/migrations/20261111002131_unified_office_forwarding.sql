@@ -75,7 +75,7 @@ begin
       or attachment.file_type is null
       or attachment.file_size is null
       or attachment.file_size < 1
-      or attachment.file_size > 10485760
+      or attachment.file_size > 104857600
       or attachment.file_path not like (
         target_submission_id::text || '/' || auth.uid()::text || '/'
           || message_id::text || '/%'

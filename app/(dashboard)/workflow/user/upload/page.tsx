@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import {
   getWorkflowFileMimeType,
   getWorkflowFilesTypeError,
+  getWorkflowFilesSizeError,
 } from '@/lib/workflow/file-types';
 import {
   getWorkflowSubmissionTitle,
@@ -182,7 +183,9 @@ export default function UploadPage() {
   }, [showPreview]);
 
   const selectMainFile = (selectedFile: File) => {
-    const fileError = getWorkflowFilesTypeError([selectedFile], false);
+    const fileError =
+      getWorkflowFilesTypeError([selectedFile], false) ||
+      getWorkflowFilesSizeError([selectedFile]);
     if (fileError) {
       setFile(null);
       setMessage({ text: fileError, type: 'error' });
@@ -203,7 +206,9 @@ export default function UploadPage() {
     const selectedFiles = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (selectedFiles.length === 0 || attachmentCheckInProgressRef.current) return;
-    const fileError = getWorkflowFilesTypeError(selectedFiles);
+    const fileError =
+      getWorkflowFilesTypeError(selectedFiles) ||
+      getWorkflowFilesSizeError(selectedFiles);
     if (fileError) {
       setMessage({ text: fileError, type: 'error' });
       return;
@@ -290,7 +295,8 @@ export default function UploadPage() {
 
     const fileError =
       getWorkflowFilesTypeError([file], false) ||
-      getWorkflowFilesTypeError(attachments);
+      getWorkflowFilesTypeError(attachments) ||
+      getWorkflowFilesSizeError([file, ...attachments]);
     if (fileError) {
       setMessage({ text: fileError, type: 'error' });
       return;

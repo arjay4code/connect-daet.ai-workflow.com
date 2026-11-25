@@ -200,8 +200,8 @@ begin
         or manifest_item.storage_path ~ '(^|/)\.\.?(/|$)'
         or manifest_item.file_type is null
         or manifest_item.file_size < 1
-        or manifest_item.file_size > 10485760 then
-        raise exception 'New and replaced files must be uploaded by you and be no larger than 10 MB';
+        or manifest_item.file_size > 104857600 then
+        raise exception 'New and replaced files must be uploaded by you and be no larger than 100 MB';
       end if;
 
       file_extension := lower(substring(manifest_item.storage_path from '\.([^.\/]+)$'));
