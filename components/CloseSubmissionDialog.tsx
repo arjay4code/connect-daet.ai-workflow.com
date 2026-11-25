@@ -52,11 +52,11 @@ export default function CloseSubmissionDialog({
         className="max-lg:my-auto w-full max-w-md rounded-2xl border border-warm-border bg-card p-6 shadow-xl"
       >
         <h2 id="close-submission-title" className="font-serif text-xl text-warm-text">
-          Complete submission?
+          Complete request?
         </h2>
         <p id="close-submission-description" className="mt-3 text-sm leading-relaxed text-muted-text">
-          Completing confirms that the responsible office has finished processing this request; it records completion, not approval.
-          Pending required office assignments must be finished first.
+          This marks processing complete without recording approval or rejection. The requestee can then create a pickup QR, but authorized staff must still verify identity and record the handover.
+          Required office assignments must be finished first.
         </p>
         {assignmentsPending && (
           <p role="status" className="mt-4 rounded-xl border border-pending-bg bg-pending-bg/50 px-4 py-3 text-xs font-medium text-pending-text">
@@ -116,7 +116,7 @@ export default function CloseSubmissionDialog({
             disabled={updating || assignmentsPending}
             className="inline-flex h-11 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {updating ? 'Completing...' : 'Confirm completion'}
+            {updating ? 'Completing...' : 'Complete request'}
           </button>
         </div>
       </section>

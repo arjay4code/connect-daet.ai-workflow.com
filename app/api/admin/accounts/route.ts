@@ -8,6 +8,7 @@ const OFFICIAL_ROLES = new Set([
   'mayor_office',
   'sangguniang_bayan',
 ]);
+const VERIFICATION_LOOKUP_CONCURRENCY = 10;
 
 export async function GET(request: NextRequest) {
   const origin = request.headers.get('origin');
@@ -75,23 +76,33 @@ export async function GET(request: NextRequest) {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const { data: profiles, error: profilesError } = await adminClient
+    .from('profiles')
+    .select('id')
+    .eq('is_removed', false);
+  if (profilesError) {
+    console.error('Could not load profiles for account verification:', profilesError.message);
+    return withAuthCookies(NextResponse.json({ error: 'Could not load account verification statuses. Try again.' }, { status: 500 }));
+  }
+
   const verificationStatuses: Record<string, 'pending' | 'verified'> = {};
-  const perPage = 1000;
+  for (let offset = 0; offset < profiles.length; offset += VERIFICATION_LOOKUP_CONCURRENCY) {
+    const batch = await Promise.all(profiles.slice(offset, offset + VERIFICATION_LOOKUP_CONCURRENCY).map(async (profile) => {
+      const { data, error } = await adminClient.auth.admin.getUserById(profile.id);
+      return { profileId: profile.id, user: data.user, error };
+    }));
 
-  for (let page = 1; ; page += 1) {
-    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
-    if (error) {
-      console.error('Could not load account verification statuses:', error.message);
-      return withAuthCookies(NextResponse.json({ error: 'Could not load account verification statuses. Try again.' }, { status: 500 }));
-    }
-
-    data.users.forEach((authUser) => {
-      verificationStatuses[authUser.id] = authUser.email_confirmed_at
+    for (const result of batch) {
+      if (result.error) {
+        if (result.error.status === 404) continue;
+        console.error('Could not load account verification status:', result.error.message);
+        return withAuthCookies(NextResponse.json({ error: 'Could not load account verification statuses. Try again.' }, { status: 500 }));
+      }
+      if (!result.user) continue;
+      verificationStatuses[result.profileId] = result.user.email_confirmed_at
         ? 'verified'
         : 'pending';
-    });
-
-    if (data.users.length < perPage) break;
+    }
   }
 
   return withAuthCookies(NextResponse.json({ verificationStatuses }, {

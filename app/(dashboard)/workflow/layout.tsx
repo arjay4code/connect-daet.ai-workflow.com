@@ -200,7 +200,7 @@ export default function WorkflowLayout({
           <span className="ui-pop flex h-9 w-9 items-center justify-center rounded-xl bg-clay text-white shadow-[0_6px_14px_-8px_var(--workflow-primary)]">
             <Icon name="file-check" size={19} />
           </span>
-          <h1 className="text-[21px] font-bold tracking-normal text-warm-text">docuflow<span className="text-clay">.</span></h1>
+          <h1 className="whitespace-nowrap text-[15px] font-bold tracking-normal text-warm-text">Connect-Daet<span className="text-clay">.ai</span></h1>
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation"
@@ -285,7 +285,7 @@ export default function WorkflowLayout({
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-clay text-white">
               <Icon name="file-check" size={19} />
             </span>
-            <span className="text-[17px] font-bold tracking-normal text-warm-text">docuflow<span className="text-clay">.</span></span>
+            <span className="whitespace-nowrap text-[15px] font-bold tracking-normal text-warm-text">Connect-Daet<span className="text-clay">.ai</span></span>
           </div>
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-muted-text max-md:hidden">
             <Icon name="dashboard" size={14} />

@@ -38,10 +38,12 @@ test('submitter detail loads route history through the shared detail RPC and ren
   assert.match(panel, /Final decision: Rejected/);
   assert.ok(page.indexOf('id={`document-preview-${sub.id}`}') < page.indexOf('<WorkflowStatusPanel'));
   assert.ok(page.indexOf('<FilePreview file={sub} />') < page.indexOf('Pickup QR code'));
-  assert.ok(page.indexOf('Pickup QR code') < page.indexOf('<WorkflowStatusPanel'));
-  assert.ok(page.indexOf('<WorkflowStatusPanel') < page.indexOf('<DocumentMessaging'));
-  assert.match(page, /\{\(isChangesRequested \|\| isRedirectable \|\| isCompleted\) && \(\s*<div className="order-2/);
-  assert.match(page, /\{\(isChangesRequested \|\| isRedirectable\) && \(\s*<section className="order-3/);
+  assert.ok(page.indexOf('<DocumentMessaging') < page.indexOf('<WorkflowStatusPanel'));
+  assert.match(page, /grid gap-5 lg:grid-cols-\[minmax\(0,1fr\)_320px\]/);
+  assert.match(page, /lg:sticky lg:top-4/);
+  assert.match(page, /role="tablist"/);
+  assert.doesNotMatch(page, /className="order-/);
+  assert.ok(page.indexOf('Your next step') < page.indexOf('Your document'));
   assert.match(page, /data\.status === 'completed' \|\| data\.status === 'approved'/);
   const mainPreviewButton = page.slice(
     page.indexOf('onClick={() => setPreviewOpen((open) => !open)}'),

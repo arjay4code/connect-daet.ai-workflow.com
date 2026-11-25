@@ -7,6 +7,7 @@ export default function FileBrowserPagination({
   page,
   totalPages,
   onPageChange,
+  ariaLabel = 'Document pages',
 }: {
   start: number;
   end: number;
@@ -14,9 +15,10 @@ export default function FileBrowserPagination({
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  ariaLabel?: string;
 }) {
   return (
-    <nav aria-label="Document pages" className="mt-5 flex flex-wrap items-center justify-between gap-3">
+    <nav aria-label={ariaLabel} className="mt-5 flex flex-wrap items-center justify-between gap-3">
       <span className="text-[11px] text-muted-text">
         Showing {start}–{end} of {totalItems} · Page {page} of {totalPages}
       </span>

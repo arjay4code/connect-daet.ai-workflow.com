@@ -170,8 +170,9 @@ export default function UserFileDetail() {
   const [qrOriginWarning, setQrOriginWarning] = useState('');
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(false);
+  const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(true);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState<'conversation' | 'updates' | 'versions'>('conversation');
   const supabase = useMemo(() => createClient(), []);
   const { userId: accountUserId, role: accountRole } = useWorkflowAccount();
 
@@ -834,87 +835,187 @@ export default function UserFileDetail() {
   const previewingAttachment = attachments.find((attachment) => attachment.id === previewingAttachmentId);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col pb-8">
-      <div className="order-0 mb-5 max-md:mb-4">
+    <div className="mx-auto w-full max-w-[1500px] pb-8">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={() => router.push('/workflow/user/file_registry')}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-muted-text transition-colors hover:text-clay"
+          className="inline-flex shrink-0 items-center gap-2 text-xs font-semibold text-muted-text transition-colors hover:text-clay"
         >
           <span className="grid h-8 w-8 place-items-center rounded-full border border-warm-border bg-card" aria-hidden="true">←</span>
           Back to my files
         </button>
+        <div className="shrink-0 rounded-xl border border-warm-border bg-white px-4 py-2.5 text-right">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Tracking Number</p>
+          <p className="font-mono text-sm font-bold tracking-[0.08em] text-clay">
+            {sub.tracking_number || 'Pending'}
+          </p>
+        </div>
       </div>
 
-      <section className="order-1 mb-5 overflow-hidden rounded-2xl border border-warm-border bg-card shadow-[0_12px_35px_rgba(65,49,39,0.05)]">
-        <div className="flex flex-col gap-5 p-5 md:flex-row md:items-center md:justify-between md:p-7">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2.5">
-              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold ${statusConfig.classes}`}>
-                <span className={`h-1.5 w-1.5 rounded-full bg-current ${isCompleted || isWithdrawn ? 'opacity-70' : 'animate-pulse'}`} />
-                {statusConfig.label}
-              </span>
-              <span className="text-[11px] font-medium text-muted-text">
-                Request ID: {sub.id.split('-')[0]}
-              </span>
-              {isOfficeRole(currentDestinationRole) && (
-                <span className="text-[11px] font-medium text-muted-text">
-                  · {OFFICE_CONFIG[currentDestinationRole].label}
-                </span>
-              )}
-            </div>
-            <h1 className={`${fonts.serif} max-w-4xl break-words text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-warm-text md:text-[36px]`}>
-              {sub.file_name}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-muted-text">
-              <span>Submitted {new Date(sub.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
-              <span>{sub.file_type || 'File'} · {sub.file_size ? `${(sub.file_size / 1024).toFixed(2)} KB` : 'Size unavailable'}</span>
-            </div>
-          </div>
-          <div className="shrink-0 rounded-xl border border-warm-border bg-white px-5 py-3.5 md:text-right">
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Tracking Number</p>
-            <p className="font-mono text-sm font-bold tracking-[0.08em] text-clay">
-              {sub.tracking_number || 'Pending'}
-            </p>
-          </div>
+      <section className="mb-5 rounded-2xl border border-warm-border bg-card p-5 shadow-[0_12px_35px_rgba(65,49,39,0.05)] md:p-7">
+        <div className="mb-3 flex flex-wrap items-center gap-2.5">
+          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold ${statusConfig.classes}`}>
+            <span className={`h-1.5 w-1.5 rounded-full bg-current ${isCompleted || isWithdrawn ? 'opacity-70' : 'animate-pulse'}`} />
+            {statusConfig.label}
+          </span>
         </div>
+        <h1 className={`${fonts.serif} max-w-4xl break-words text-2xl font-semibold leading-tight tracking-[-0.02em] text-warm-text md:text-3xl`}>
+          {sub.file_name}
+        </h1>
+        <p className="mt-2 truncate text-[11px] text-muted-text" title={sub.file_name}>
+          Request ID: {sub.id.split('-')[0]}
+          {' · '}Submitted {new Date(sub.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+          {' · '}{sub.file_type || 'File'}
+          {' · '}{sub.file_size ? `${(sub.file_size / 1024).toFixed(2)} KB` : 'Size unavailable'}
+          {' · '}{currentDestinationLabel}
+        </p>
+      </section>
 
-        <section className="border-t border-warm-border px-5 py-6 md:px-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">About your request</p>
-              <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Request details</h2>
-            </div>
-            <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
-              {getWorkflowDocumentTypeLabel(sub.category, sub.other_document_type)}
-            </span>
-          </div>
-          <div className="grid gap-x-8 gap-y-5 md:grid-cols-2">
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Who this is for</p>
-              <p className="text-xs font-semibold text-warm-text">{sub.intended_recipient || 'Not specified.'}</p>
-            </div>
-            {currentDestinationRole && (
-              <div>
-                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Office handling your request</p>
-                <p className="text-xs font-semibold text-warm-text">{currentDestinationLabel}</p>
-                {isOfficeRole(initialDestinationRole) && initialDestinationRole !== currentDestinationRole && (
-                  <p className="mt-1 text-[10px] text-muted-text">
-                    Initially selected: {OFFICE_CONFIG[initialDestinationRole].label}
+      <section
+        aria-labelledby={`next-step-${sub.id}`}
+        className="mb-5 flex flex-col gap-4 rounded-2xl border border-warm-border bg-card p-5 md:flex-row md:items-start md:justify-between md:p-6"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Your next step</p>
+          <h2 id={`next-step-${sub.id}`} className="mt-1 font-serif text-xl font-semibold text-warm-text">
+            {isChangesRequested
+              ? 'Please review the office’s request'
+              : isRedirectable
+                ? 'Choose a new office'
+                : isCompleted
+                  ? 'Collect your document'
+                  : isPermanentlyClosed
+                    ? 'Request closed permanently'
+                    : 'Nothing needed from you.'}
+          </h2>
+          {!isChangesRequested && !isRedirectable && !isCompleted && (
+            isPermanentlyClosed ? (
+              <p role="status" className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+                You permanently closed this request. It cannot be reopened, but your files and history are still available here.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+                {currentDestinationLabel} is processing your request.
+              </p>
+            )
+          )}
+          {isChangesRequested && (
+            <>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+                Processing is paused while you respond. You can message the office, update your files and resubmit once, or permanently close the request.
+              </p>
+              <div className="mt-3 space-y-3 rounded-xl border border-pending-text/20 bg-pending-bg/50 p-4" role="status">
+                <div>
+                  <h3 className="text-xs font-semibold text-warm-text">The office requested changes</h3>
+                  <p className="mt-1 text-[10px] font-medium text-muted-text">
+                    Requested by {requestAuthor}
+                    {openChangeRequest?.createdAt
+                      ? ` · ${new Date(openChangeRequest.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
+                      : ''}
                   </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-text">
+                    {requestMessage}
+                  </p>
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-text">
+                  Message the office above if you need clarification. Sending a message will not change your request status.
+                </p>
+                {canRevise && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-warm-text">Update your files and resubmit</h3>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
+                      Keep, replace, or remove files, and add additional documents if needed. Add or replace at least one file to send your updated request back to {currentDestinationLabel}.
+                    </p>
+                  </div>
+                )}
+                {canClosePermanently && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-warm-text">Close this request permanently</h3>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
+                      You can’t undo this. Your files and version history will remain available.
+                    </p>
+                  </div>
                 )}
               </div>
-            )}
-            <div className="md:col-span-2">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Purpose or details</p>
-              <blockquote className="whitespace-pre-wrap break-words border-l-2 border-clay pl-3 font-serif text-[14px] italic leading-relaxed text-warm-text/75">
-                {sub.description || 'No description provided.'}
-              </blockquote>
+            </>
+          )}
+          {isRedirectable && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+              Choose the office that should handle your request next.
+            </p>
+          )}
+          {isCompleted && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+              When processing is complete, generate a QR code to show the staff member when you collect your document.
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+          {isChangesRequested && canRevise && !revisionEditorOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                startRevision();
+                document.getElementById(`revision-editor-${sub.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              disabled={revisionHistoryLoading || submittingRevision || closingPermanently}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Update files
+            </button>
+          )}
+          {isChangesRequested && canClosePermanently && (
+            <button
+              type="button"
+              onClick={() => void closePermanently()}
+              disabled={closingPermanently || submittingRevision}
+              className="inline-flex h-10 items-center justify-center rounded-full border border-rejected-text px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {closingPermanently ? 'Closing request...' : 'Close request permanently'}
+            </button>
+          )}
+          {isRedirectable && (
+            <button
+              type="button"
+              onClick={() => document.getElementById(`redirect-form-${sub.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text"
+            >
+              Choose a new office
+            </button>
+          )}
+          {isCompleted && !(retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released') && (
+            <button
+              type="button"
+              onClick={() => void generateRetrievalQr()}
+              disabled={qrLoading}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {qrLoading ? 'Creating QR code...' : 'Create pickup QR code'}
+            </button>
+          )}
+          {isCompleted && (retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released') && (
+            <div className="rounded-xl border border-warm-border bg-white p-2 text-center">
+              {qrImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qrImage}
+                  alt=""
+                  aria-hidden="true"
+                  className="mx-auto h-28 w-28 max-w-full"
+                />
+              ) : (
+                <p className="px-3 py-8 text-xs text-muted-text">Preparing your QR code...</p>
+              )}
             </div>
-          </div>
-        </section>
+          )}
+        </div>
+      </section>
 
-        <section className="border-t border-warm-border">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-5">
+
+        <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
           <div className={`flex items-center gap-3 px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
             <button
               type="button"
@@ -988,10 +1089,10 @@ export default function UserFileDetail() {
               className="border-b border-warm-border bg-sidebar/40 px-5 py-4 md:px-7"
             >
               <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Additional documents</p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-wrap gap-2">
                 {attachments.map((attachment) => (
-                  <div key={attachment.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-warm-border bg-card p-3 text-warm-text">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-clay-soft text-clay" aria-hidden="true">▤</span>
+                  <div key={attachment.id} className="flex min-w-0 items-center gap-2 rounded-full border border-warm-border bg-card px-3 py-1.5 text-warm-text">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-clay-soft text-clay" aria-hidden="true">▤</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-bold">{attachment.file_name}</span>
                       <span className="mt-0.5 block text-[9px] text-muted-text">
@@ -1005,7 +1106,7 @@ export default function UserFileDetail() {
                         onClick={() => setPreviewingAttachmentId((current) => current === attachment.id ? null : attachment.id)}
                         aria-label={`${previewingAttachmentId === attachment.id ? 'Close preview of' : 'Preview'} ${attachment.file_name}`}
                         aria-pressed={previewingAttachmentId === attachment.id}
-                        className={`grid h-9 w-9 place-items-center rounded-full transition-colors ${
+                        className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
                           previewingAttachmentId === attachment.id ? 'bg-clay-soft text-clay' : 'text-muted-text hover:bg-sidebar hover:text-warm-text'
                         }`}
                       >
@@ -1015,7 +1116,7 @@ export default function UserFileDetail() {
                         type="button"
                         onClick={() => void downloadAttachment(attachment)}
                         aria-label={`Download ${attachment.file_name}`}
-                        className="grid h-9 w-9 place-items-center rounded-full text-muted-text transition-colors hover:bg-sidebar hover:text-warm-text"
+                        className="grid h-8 w-8 place-items-center rounded-full text-muted-text transition-colors hover:bg-sidebar hover:text-warm-text"
                       >
                         <span aria-hidden="true">↓</span>
                       </button>
@@ -1059,234 +1160,23 @@ export default function UserFileDetail() {
             )}
           </div>
         </section>
-      </section>
 
-      {(isChangesRequested || isRedirectable || isCompleted) && (
-      <div className="order-2 mb-5">
-        <section className="rounded-2xl border border-warm-border bg-card p-5 md:p-6">
-          <div className="mb-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Collect your document</p>
-            <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Pickup QR code</h2>
-          </div>
-          <p className="mb-4 text-[11px] leading-relaxed text-muted-text">
-            When processing is complete, generate a QR code to show the staff member when you collect your document.
-          </p>
-          {!canGenerateRetrievalQr ? (
-            <p className="rounded-xl bg-sidebar px-3 py-3 text-xs text-muted-text">
-              A pickup QR code will be available when processing is complete.
-            </p>
-          ) : retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released' ? (
-            <div className="retrieval-qr-print rounded-xl border border-warm-border bg-white p-4 text-center">
-              {qrImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={qrImage}
-                  alt={`Pickup QR code for ${sub.tracking_number}`}
-                  className="mx-auto h-64 w-64 max-w-full"
-                />
-              ) : (
-                <p className="py-12 text-xs text-muted-text">Preparing your QR code...</p>
-              )}
-              <p className="mt-2 text-sm font-bold text-warm-text">Tracking Number: {sub.tracking_number}</p>
-              <p className="mt-2 text-xs text-warm-text">
-                Show this QR code to the authorized staff member when you collect your document.
+      <div id={`revision-editor-${sub.id}`} className="scroll-mt-4">
+      {(isRedirectable || (isChangesRequested && canRevise && revisionEditorOpen)) && (
+        <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+          {isRedirectable && (
+            <header className="border-b border-warm-border px-5 py-4 md:px-6">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-clay">Choose a new office</p>
+              <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Send your request to a different office</h2>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
+                Choose the office that should handle your request next.
               </p>
-              <p className="mt-2 text-[10px] text-muted-text">
-                Valid through {new Date(retrievalQr.expires_at).toLocaleDateString()}
-              </p>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void generateRetrievalQr()}
-              disabled={qrLoading}
-              className="inline-flex h-10 w-full items-center justify-center rounded-full bg-clay px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {qrLoading ? 'Creating QR code...' : 'Create pickup QR code'}
-            </button>
+            </header>
           )}
-          {(retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released') && (
-            <div className="mt-4 flex gap-2 print:hidden">
-              <button
-                type="button"
-                onClick={downloadRetrievalQr}
-                disabled={!qrImage}
-                className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Download QR image
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                disabled={!qrImage}
-                className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Print QR code
-              </button>
-            </div>
-          )}
-          {qrError && <p role="alert" className="mt-3 text-xs text-rejected-text">{qrError}</p>}
-          {qrOriginWarning && (
-            <p role="status" className="mt-3 rounded-xl bg-pending-bg px-3 py-2 text-[11px] leading-relaxed text-pending-text">
-              {qrOriginWarning}
-            </p>
-          )}
-          {isCompleted && (
-            <div className="mt-4 space-y-3 rounded-xl border border-approved-bg bg-approved-bg/40 p-4">
-              <p className="text-xs font-semibold text-approved-text">
-                {sub.status === 'approved' ? 'Your request was approved' : 'Request processing is complete'}
-              </p>
-              <p className="text-[11px] text-warm-text">
-                {sub.status === 'approved' ? 'Approved' : 'Processing completed'} by {closureActor || 'an authorized office representative'}
-                {completionDate
-                  ? ` on ${new Date(completionDate).toLocaleString()}`
-                  : ''}.
-                {sub.status !== 'approved' && ' This means the office has finished processing your request; it does not necessarily mean it was approved.'}
-              </p>
-              {sub.closure_note && (
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold text-muted-text">Note from the office</p>
-                  <p className="whitespace-pre-wrap rounded-xl bg-card/70 p-3 text-xs leading-relaxed text-warm-text">
-                    {sub.closure_note}
-                  </p>
-                </div>
-              )}
-              {sub.closure_file_path && sub.closure_file_name && (
-                <button
-                  type="button"
-                  onClick={() => void downloadAttachment({
-                    id: 'closure-file',
-                    file_name: sub.closure_file_name!,
-                    file_path: sub.closure_file_path!,
-                    file_type: sub.closure_file_type ?? null,
-                    file_size: sub.closure_file_size ?? 0,
-                  })}
-                  className="text-xs font-semibold text-clay underline underline-offset-2"
-                >
-                  Download the completion document: {sub.closure_file_name}
-                </button>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-      )}
-
-      <div className="order-4 mb-5">
-        <WorkflowStatusPanel
-          submissionId={sub.id}
-          submissionStatus={sub.status}
-          responsibleOfficeRole={responsibleOfficeRole}
-          receivedAt={sub.received_at}
-          currentRoutePlanId={currentRoutePlanId}
-          steps={routeSteps}
-          finalDecisionOfficeRole={sub.final_decision_office_role}
-          finalDecidedAt={sub.final_decided_at}
-          approvedAt={sub.approved_at}
-          rejectedAt={sub.rejected_at}
-          completedAt={sub.completed_at}
-          routeError={routeError}
-        />
-      </div>
-
-      {isPermanentlyClosed && (
-        <div className="order-5 mb-5 rounded-2xl border border-warm-border bg-sidebar/60 px-5 py-4 text-xs leading-relaxed text-muted-text" role="status">
-          You permanently closed this request. It cannot be reopened, but your files and history are still available here.
-        </div>
-      )}
-
-      <div className="order-6 space-y-5">
-      <DocumentMessaging
-        key={sub.id}
-        submissionId={sub.id}
-        fileName={sub.file_name}
-        trackingNumber={sub.tracking_number}
-        submitterConversationLabel="Request conversation"
-        canSendSubmitterConversation={!isCompleted && !isWithdrawn}
-        activity={(
-          <div>
-            <WorkflowActivityTimeline
-              emptyMessage="No updates have been recorded yet."
-              showComments={false}
-              events={auditLogs.map((log) => {
-                const profile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
-                return {
-                  id: log.id,
-                  actionType: log.action_type,
-                  label: getWorkflowActionLabel(log.action_type),
-                  createdAt: log.created_at,
-                  actor: profile?.full_name || 'System',
-                  actorRole: profile?.role,
-                  comments: log.comments,
-                };
-              })}
-            />
-          </div>
-        )}
-      />
-      <WorkflowRevisionTimeline
-        history={revisionHistory}
-        loading={revisionHistoryLoading}
-        error={revisionHistoryError}
-      />
-      </div>
-
-      {(isChangesRequested || isRedirectable) && (
-        <section className="order-3 mt-5 overflow-hidden rounded-2xl border border-warm-border bg-card">
-          <header className="border-b border-warm-border px-5 py-4 md:px-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-clay">
-              {isChangesRequested               ? 'Changes requested' : 'Choose a new office'}
-            </p>
-            <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">
-              {isChangesRequested ? 'Please review the office’s request' : 'Send your request to a different office'}
-            </h2>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-text">
-              {isChangesRequested
-                ? 'Processing is paused while you respond. You can message the office, update your files and resubmit once, or permanently close the request.'
-                : 'Choose the office that should handle your request next.'}
-            </p>
-          </header>
           <div className="grid gap-4 bg-[#f8f5f1] p-5 md:grid-cols-2 md:p-6">
-            {isChangesRequested && (
-              <div className="space-y-3 rounded-xl border border-pending-text/20 bg-pending-bg/50 p-4 md:col-span-2" role="status">
-                <div>
-                  <h3 className="text-xs font-semibold text-warm-text">The office requested changes</h3>
-                  <p className="mt-1 text-[10px] font-medium text-muted-text">
-                    Requested by {requestAuthor}
-                    {openChangeRequest?.createdAt
-                      ? ` · ${new Date(openChangeRequest.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
-                      : ''}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-text">
-                    {requestMessage}
-                  </p>
-                </div>
-                <p className="text-[11px] leading-relaxed text-muted-text">
-                  Message the office above if you need clarification. Sending a message will not change your request status.
-                </p>
-              </div>
-            )}
 
-            {canRevise && (
+            {isChangesRequested && canRevise && revisionEditorOpen && (
               <div className="space-y-4 rounded-xl border border-clay/25 bg-card p-4 md:col-span-2">
-                {!revisionEditorOpen ? (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-xs font-semibold text-warm-text">Update your files and resubmit</h3>
-                      <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
-                        Keep, replace, or remove files, and add additional documents if needed. Add or replace at least one file to send your updated request back to {currentDestinationLabel}.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={startRevision}
-                      disabled={revisionHistoryLoading || submittingRevision || closingPermanently}
-                      className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-clay px-5 text-xs font-semibold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Update files
-                    </button>
-                  </div>
-                ) : (
                   <form onSubmit={(event) => void submitRevision(event)} className="space-y-4">
                     <div>
                       <h3 className="text-xs font-semibold text-warm-text">Choose which files to update</h3>
@@ -1413,31 +1303,15 @@ export default function UserFileDetail() {
                       </button>
                     </div>
                   </form>
-                )}
-              </div>
-            )}
-
-            {canClosePermanently && (
-              <div className="flex flex-col gap-3 rounded-xl border border-rejected-bg bg-card p-4 md:col-span-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-xs font-semibold text-warm-text">Close this request permanently</h3>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
-                    You can’t undo this. Your files and version history will remain available.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void closePermanently()}
-                  disabled={closingPermanently || submittingRevision}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-rejected-text px-5 text-xs font-semibold text-rejected-text transition-colors hover:bg-rejected-bg/40 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {closingPermanently ? 'Closing request...' : 'Close request permanently'}
-                </button>
               </div>
             )}
 
             {isRedirectable && (
-              <form onSubmit={(event) => void handleRedirectSubmit(event)} className="space-y-3 rounded-xl border border-warm-border bg-card p-4">
+              <form
+                id={`redirect-form-${sub.id}`}
+                onSubmit={(event) => void handleRedirectSubmit(event)}
+                className="space-y-3 rounded-xl border border-warm-border bg-card p-4"
+              >
                 <div>
                   <h3 className="text-xs font-semibold text-warm-text">Choose a different office</h3>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-text">
@@ -1528,11 +1402,293 @@ export default function UserFileDetail() {
         </section>
       )}
       {actionError && (
-        <p role="alert" className="order-3 mt-4 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text">
+        <p role="alert" className="mt-4 rounded-xl border border-rejected-bg bg-rejected-bg/50 px-4 py-3 text-xs font-medium text-rejected-text">
           {actionError}
         </p>
       )}
+      </div>
 
+        <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+          <div
+            role="tablist"
+            aria-label="Submission detail sections"
+            aria-orientation="horizontal"
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+              event.preventDefault();
+              const tabs = ['conversation', 'updates', 'versions'] as const;
+              const currentIndex = tabs.indexOf(activeDetailTab);
+              const offset = event.key === 'ArrowRight' ? 1 : -1;
+              const nextTab = tabs[(currentIndex + offset + tabs.length) % tabs.length];
+              setActiveDetailTab(nextTab);
+              document.getElementById(`detail-tab-${sub.id}-${nextTab}`)?.focus();
+            }}
+            className="flex overflow-x-auto border-b border-warm-border px-3"
+          >
+            <button
+              type="button"
+              role="tab"
+              id={`detail-tab-${sub.id}-conversation`}
+              aria-selected={activeDetailTab === 'conversation'}
+              aria-controls={`detail-panel-${sub.id}-conversation`}
+              tabIndex={activeDetailTab === 'conversation' ? 0 : -1}
+              onClick={() => setActiveDetailTab('conversation')}
+              className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+                activeDetailTab === 'conversation' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+              }`}
+            >
+              Conversation
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id={`detail-tab-${sub.id}-updates`}
+              aria-selected={activeDetailTab === 'updates'}
+              aria-controls={`detail-panel-${sub.id}-updates`}
+              tabIndex={activeDetailTab === 'updates' ? 0 : -1}
+              onClick={() => setActiveDetailTab('updates')}
+              className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+                activeDetailTab === 'updates' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+              }`}
+            >
+              Updates
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id={`detail-tab-${sub.id}-versions`}
+              aria-selected={activeDetailTab === 'versions'}
+              aria-controls={`detail-panel-${sub.id}-versions`}
+              tabIndex={activeDetailTab === 'versions' ? 0 : -1}
+              onClick={() => setActiveDetailTab('versions')}
+              className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+                activeDetailTab === 'versions' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+              }`}
+            >
+              File versions
+            </button>
+          </div>
+
+          <div
+            id={`detail-panel-${sub.id}-conversation`}
+            role="tabpanel"
+            aria-labelledby={`detail-tab-${sub.id}-conversation`}
+            tabIndex={0}
+            hidden={activeDetailTab !== 'conversation'}
+            className="p-4 md:p-5"
+          >
+            <div className="[&>section>div]:grid-cols-1 [&>section>div>aside]:hidden">
+              <DocumentMessaging
+                key={sub.id}
+                submissionId={sub.id}
+                fileName={sub.file_name}
+                trackingNumber={sub.tracking_number}
+                submitterConversationLabel="Request conversation"
+                canSendSubmitterConversation={!isCompleted && !isWithdrawn}
+                activity={null}
+              />
+            </div>
+          </div>
+
+          <div
+            id={`detail-panel-${sub.id}-updates`}
+            role="tabpanel"
+            aria-labelledby={`detail-tab-${sub.id}-updates`}
+            tabIndex={0}
+            hidden={activeDetailTab !== 'updates'}
+            className="p-4 md:p-5"
+          >
+            <WorkflowActivityTimeline
+              emptyMessage="No updates have been recorded yet."
+              showComments={false}
+              events={auditLogs.map((log) => {
+                const profile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
+                return {
+                  id: log.id,
+                  actionType: log.action_type,
+                  label: getWorkflowActionLabel(log.action_type),
+                  createdAt: log.created_at,
+                  actor: profile?.full_name || 'System',
+                  actorRole: profile?.role,
+                  comments: log.comments,
+                };
+              })}
+            />
+          </div>
+
+          <div
+            id={`detail-panel-${sub.id}-versions`}
+            role="tabpanel"
+            aria-labelledby={`detail-tab-${sub.id}-versions`}
+            tabIndex={0}
+            hidden={activeDetailTab !== 'versions'}
+            className="p-4 md:p-5"
+          >
+            <WorkflowRevisionTimeline
+              history={revisionHistory}
+              loading={revisionHistoryLoading}
+              error={revisionHistoryError}
+            />
+          </div>
+        </section>
+        </div>
+
+        <aside className="space-y-5 lg:sticky lg:top-4 lg:self-start">
+          <WorkflowStatusPanel
+            submissionId={sub.id}
+            submissionStatus={sub.status}
+            responsibleOfficeRole={responsibleOfficeRole}
+            receivedAt={sub.received_at}
+            currentRoutePlanId={currentRoutePlanId}
+            steps={routeSteps}
+            finalDecisionOfficeRole={sub.final_decision_office_role}
+            finalDecidedAt={sub.final_decided_at}
+            approvedAt={sub.approved_at}
+            rejectedAt={sub.rejected_at}
+            completedAt={sub.completed_at}
+            routeError={routeError}
+          />
+
+          <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+            <header className="border-b border-warm-border px-5 py-4">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">About your request</p>
+                  <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Request details</h2>
+                </div>
+                <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
+                  {getWorkflowDocumentTypeLabel(sub.category, sub.other_document_type)}
+                </span>
+              </div>
+            </header>
+            <div className="grid gap-x-8 gap-y-5 p-5 md:grid-cols-2 lg:grid-cols-1">
+              <div>
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Who this is for</p>
+                <p className="text-xs font-semibold text-warm-text">{sub.intended_recipient || 'Not specified.'}</p>
+              </div>
+              {currentDestinationRole && (
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Office handling your request</p>
+                  <p className="text-xs font-semibold text-warm-text">{currentDestinationLabel}</p>
+                  {isOfficeRole(initialDestinationRole) && initialDestinationRole !== currentDestinationRole && (
+                    <p className="mt-1 text-[10px] text-muted-text">
+                      Initially selected: {OFFICE_CONFIG[initialDestinationRole].label}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="md:col-span-2 lg:col-span-1">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">Purpose or details</p>
+                <blockquote className="whitespace-pre-wrap break-words border-l-2 border-clay pl-3 font-serif text-[14px] italic leading-relaxed text-warm-text/75">
+                  {sub.description || 'No description provided.'}
+                </blockquote>
+              </div>
+            </div>
+          </section>
+
+          {isCompleted && (
+            <section id={`pickup-qr-${sub.id}`} className="rounded-2xl border border-warm-border bg-card p-5 md:p-6">
+              <div className="mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Collect your document</p>
+                <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Pickup QR code</h2>
+              </div>
+              <p className="mb-4 text-[11px] leading-relaxed text-muted-text">
+                When processing is complete, generate a QR code to show the staff member when you collect your document.
+              </p>
+              {!canGenerateRetrievalQr ? (
+                <p className="rounded-xl bg-sidebar px-3 py-3 text-xs text-muted-text">
+                  A pickup QR code will be available when processing is complete.
+                </p>
+              ) : retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released' ? (
+                <div className="retrieval-qr-print rounded-xl border border-warm-border bg-white p-4 text-center">
+                  {qrImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrImage}
+                      alt={`Pickup QR code for ${sub.tracking_number}`}
+                      className="mx-auto h-64 w-64 max-w-full"
+                    />
+                  ) : (
+                    <p className="py-12 text-xs text-muted-text">Preparing your QR code...</p>
+                  )}
+                  <p className="mt-2 text-sm font-bold text-warm-text">Tracking Number: {sub.tracking_number}</p>
+                  <p className="mt-2 text-xs text-warm-text">
+                    Show this QR code to the authorized staff member when you collect your document.
+                  </p>
+                  <p className="mt-2 text-[10px] text-muted-text">
+                    Valid through {new Date(retrievalQr.expires_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ) : (
+                <p role="status" className="rounded-xl bg-sidebar px-3 py-3 text-xs text-muted-text">
+                  Use the &quot;Create pickup QR code&quot; action in Your next step above.
+                </p>
+              )}
+              {(retrievalQr?.retrieval_status === 'active' || retrievalQr?.retrieval_status === 'released') && (
+                <div className="mt-4 flex gap-2 print:hidden">
+                  <button
+                    type="button"
+                    onClick={downloadRetrievalQr}
+                    disabled={!qrImage}
+                    className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Download QR image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    disabled={!qrImage}
+                    className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-warm-border px-4 text-xs font-semibold text-warm-text disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Print QR code
+                  </button>
+                </div>
+              )}
+              {qrError && <p role="alert" className="mt-3 text-xs text-rejected-text">{qrError}</p>}
+              {qrOriginWarning && (
+                <p role="status" className="mt-3 rounded-xl bg-pending-bg px-3 py-2 text-[11px] leading-relaxed text-pending-text">
+                  {qrOriginWarning}
+                </p>
+              )}
+              <div className="mt-4 space-y-3 rounded-xl border border-approved-bg bg-approved-bg/40 p-4">
+                <p className="text-xs font-semibold text-approved-text">
+                  {sub.status === 'approved' ? 'Your request was approved' : 'Request processing is complete'}
+                </p>
+                <p className="text-[11px] text-warm-text">
+                  {sub.status === 'approved' ? 'Approved' : 'Processing completed'} by {closureActor || 'an authorized office representative'}
+                  {completionDate
+                    ? ` on ${new Date(completionDate).toLocaleString()}`
+                    : ''}.
+                  {sub.status !== 'approved' && ' This means the office has finished processing your request; it does not necessarily mean it was approved.'}
+                </p>
+                {sub.closure_note && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-semibold text-muted-text">Note from the office</p>
+                    <p className="whitespace-pre-wrap rounded-xl bg-card/70 p-3 text-xs leading-relaxed text-warm-text">
+                      {sub.closure_note}
+                    </p>
+                  </div>
+                )}
+                {sub.closure_file_path && sub.closure_file_name && (
+                  <button
+                    type="button"
+                    onClick={() => void downloadAttachment({
+                      id: 'closure-file',
+                      file_name: sub.closure_file_name!,
+                      file_path: sub.closure_file_path!,
+                      file_type: sub.closure_file_type ?? null,
+                      file_size: sub.closure_file_size ?? 0,
+                    })}
+                    className="text-xs font-semibold text-clay underline underline-offset-2"
+                  >
+                    Download the completion document: {sub.closure_file_name}
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
