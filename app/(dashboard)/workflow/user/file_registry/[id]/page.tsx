@@ -173,7 +173,7 @@ export default function UserFileDetail() {
   const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(false);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
-  const { userId: accountUserId } = useWorkflowAccount();
+  const { userId: accountUserId, role: accountRole } = useWorkflowAccount();
 
   const fetchSubmission = useCallback(async (preserveCurrent = false) => {
     if (!preserveCurrent) {
@@ -372,6 +372,9 @@ export default function UserFileDetail() {
 
   const redirectReturnedSubmission = async () => {
     if (!sub || !isOfficeRole(redirectOffice) || !redirectDocumentType) throw new Error('Choose an office and document type.');
+    if (isOfficeRole(accountRole) && redirectOffice === accountRole) {
+      throw new Error('Choose an office other than your own to review this request.');
+    }
     if (redirectDocumentType === 'Other' && !redirectOtherDocumentType.trim()) {
       throw new Error('Enter the custom document type.');
     }
@@ -1456,9 +1459,11 @@ export default function UserFileDetail() {
                     className="mt-1.5 block h-10 w-full rounded-xl border border-warm-border bg-white px-3 text-xs font-medium normal-case tracking-normal text-warm-text outline-none focus:border-clay"
                   >
                     <option value="">Choose an office</option>
-                    {Object.entries(OFFICE_CONFIG).map(([officeRole, office]) => (
+                    {Object.entries(OFFICE_CONFIG)
+                      .filter(([officeRole]) => !isOfficeRole(accountRole) || officeRole !== accountRole)
+                      .map(([officeRole, office]) => (
                       <option key={officeRole} value={officeRole}>{office.label}</option>
-                    ))}
+                      ))}
                   </select>
                 </label>
                 <label className="block text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">

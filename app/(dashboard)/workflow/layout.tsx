@@ -151,6 +151,8 @@ export default function WorkflowLayout({
     if (isOfficeRole(role)) {
       return [
         { href: getRoleHomePath(role), label: 'Dashboard', icon: 'dashboard' },
+        { href: '/workflow/user/upload', label: 'New Request', icon: 'file-plus' },
+        { href: '/workflow/user', label: 'My Requests', icon: 'files' },
         { href: getOfficeFileManagementPath(role), label: 'File Registry', icon: 'files' },
         { href: getOfficeNotificationsPath(role), label: 'Notifications', icon: 'bell', alert: hasUnread && !pathname.includes('notifications') },
         { href: '/workflow/retrieval', label: 'Scan QR Code', icon: 'qr' },
