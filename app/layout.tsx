@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const lora = Lora({ subsets: ['latin'], variable: '--font-lora' });
 
 export const metadata: Metadata = {
-  title: 'Connect-Date.ai',
+  title: 'Connect-Daet.ai',
   description: 'Workflow approval system for Daet tourism',
 };
 

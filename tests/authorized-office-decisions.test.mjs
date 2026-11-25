@@ -90,7 +90,10 @@ test('responsible and forwarded offices can select approve/reject while Complete
   assert.match(detailPage, /value: 'complete_assignment'/);
   assert.doesNotMatch(detailPage, /finalDecisionUnavailableReason/);
   assert.match(detailPage, /label: 'Request changes or information'/);
-  assert.match(detailPage, /label: 'Complete'/);
+  assert.match(detailPage, /label: 'Complete request'/);
+  assert.match(detailPage, /label: 'Complete assignment'/);
+  assert.match(detailPage, /label: 'Recommend approval'/);
+  assert.match(detailPage, /label: 'Recommend rejection'/);
   assert.match(detailPage, /label: 'Forward'/);
 });
 

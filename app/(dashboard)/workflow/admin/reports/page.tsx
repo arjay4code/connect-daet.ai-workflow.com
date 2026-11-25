@@ -13,8 +13,12 @@ import Icon, { type IconName } from '@/components/ui/Icon';
 import PageHero from '@/components/ui/PageHero';
 import SkeletonRows from '@/components/ui/SkeletonRows';
 import StatCard, { type StatTone } from '@/components/ui/StatCard';
+import FileBrowserPagination from '@/components/FileBrowserPagination';
+import { paginateFileBrowserItems } from '@/lib/workflow/file-browser';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
+const REPORT_PAGE_SIZE = 20;
+
 const fonts = {
   serif: 'font-serif',
 };
@@ -86,6 +90,7 @@ export default function ReportsPage() {
   const [rows, setRows] = useState<SubmissionReportRow[]>([]);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,6 +129,11 @@ export default function ReportsPage() {
     const createdDate = row.created_at.slice(0, 10);
     return (!fromDate || createdDate >= fromDate) && (!toDate || createdDate <= toDate);
   }), [fromDate, rows, toDate]);
+
+  const paginatedRows = useMemo(
+    () => paginateFileBrowserItems(filteredRows, page, REPORT_PAGE_SIZE),
+    [filteredRows, page]
+  );
 
   const reportAverages = useMemo(
     () => calculateWorkflowReportAverages(filteredRows),
@@ -184,11 +194,11 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="report-from" className="mb-1.5 block text-[11px] font-medium text-muted-text">From</label>
-            <input id="report-from" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className={fieldClasses} />
+            <input id="report-from" type="date" value={fromDate} onChange={(event) => { setFromDate(event.target.value); setPage(1); }} className={fieldClasses} />
           </div>
           <div>
             <label htmlFor="report-to" className="mb-1.5 block text-[11px] font-medium text-muted-text">To</label>
-            <input id="report-to" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className={fieldClasses} />
+            <input id="report-to" type="date" value={toDate} onChange={(event) => { setToDate(event.target.value); setPage(1); }} className={fieldClasses} />
           </div>
           <div className="flex items-end gap-3 sm:col-span-2 max-md:flex-col max-md:items-stretch">
             <button
@@ -200,7 +210,7 @@ export default function ReportsPage() {
             </button>
             {hasDateFilter && (
               <button
-                onClick={() => { setFromDate(''); setToDate(''); }}
+                onClick={() => { setFromDate(''); setToDate(''); setPage(1); }}
                 className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-warm-border px-6 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar sm:flex-none"
               >
                 Clear dates
@@ -240,7 +250,7 @@ export default function ReportsPage() {
           <p className="mt-2 text-xs text-muted-text">No records found for this date range.</p>
           {hasDateFilter && (
             <button
-              onClick={() => { setFromDate(''); setToDate(''); }}
+              onClick={() => { setFromDate(''); setToDate(''); setPage(1); }}
               className="mt-5 inline-flex h-10 items-center rounded-full border border-warm-border px-5 text-xs font-medium text-warm-text transition-colors hover:bg-sidebar max-md:h-11"
             >
               Clear dates
@@ -262,7 +272,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-border">
-                {filteredRows.map((row) => (
+                {paginatedRows.items.map((row) => (
                   <tr key={row.id} className="transition-colors hover:bg-sidebar/50">
                     <td className="whitespace-nowrap px-5 py-4 text-[11px] font-semibold text-clay max-md:px-3.5">
                       {row.tracking_number || 'Tracking pending'}
@@ -289,6 +299,17 @@ export default function ReportsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-5 pb-5 max-md:px-3.5">
+            <FileBrowserPagination
+              start={paginatedRows.start}
+              end={paginatedRows.end}
+              totalItems={filteredRows.length}
+              page={paginatedRows.page}
+              totalPages={paginatedRows.totalPages}
+              onPageChange={setPage}
+              ariaLabel="Report pages"
+            />
           </div>
         </div>
       )}

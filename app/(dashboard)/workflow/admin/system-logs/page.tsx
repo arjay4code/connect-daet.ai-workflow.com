@@ -11,8 +11,11 @@ import {
 import Icon, { type IconName } from '@/components/ui/Icon';
 import SkeletonRows from '@/components/ui/SkeletonRows';
 import PageHero from '@/components/ui/PageHero';
+import FileBrowserPagination from '@/components/FileBrowserPagination';
+import { paginateFileBrowserItems } from '@/lib/workflow/file-browser';
 
 const idleThresholdHours = PRESENCE_IDLE_THRESHOLD_MS / (60 * 60 * 1000);
+const SYSTEM_LOG_PAGE_SIZE = 20;
 
 interface Officer {
   id: string;
@@ -136,6 +139,8 @@ export default function SystemLogsPage() {
   const [now, setNow] = useState(() => Date.now());
   const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('day');
   const [dateFilterValue, setDateFilterValue] = useState('');
+  const [officerPage, setOfficerPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1);
   const dateRange = useMemo(() => getDateRange(dateFilterMode, dateFilterValue), [dateFilterMode, dateFilterValue]);
   // Kept in a ref so the auto-refresh timers always use the current filter
   // without being torn down and re-created on every keystroke.
@@ -205,10 +210,18 @@ export default function SystemLogsPage() {
     void fetchMonitoringData(true);
   }, [dateRange, fetchMonitoringData]);
 
-  const clearDateFilter = () => setDateFilterValue('');
+  const clearDateFilter = () => {
+    setDateFilterValue('');
+    setActivityPage(1);
+  };
   const changeDateFilterMode = (mode: DateFilterMode) => {
     setDateFilterMode(mode);
     setDateFilterValue('');
+    setActivityPage(1);
+  };
+  const changeDateFilterValue = (value: string) => {
+    setDateFilterValue(value);
+    setActivityPage(1);
   };
 
   useEffect(() => {
@@ -260,6 +273,15 @@ export default function SystemLogsPage() {
     return latest;
   }, [data.presenceSessions]);
 
+  const paginatedOfficers = useMemo(
+    () => paginateFileBrowserItems(data.officers, officerPage, SYSTEM_LOG_PAGE_SIZE),
+    [data.officers, officerPage]
+  );
+  const paginatedEvents = useMemo(
+    () => paginateFileBrowserItems(data.events, activityPage, SYSTEM_LOG_PAGE_SIZE),
+    [activityPage, data.events]
+  );
+
   return (
     <div className="space-y-7">
       <PageHero
@@ -307,7 +329,7 @@ export default function SystemLogsPage() {
           <p className="px-5 py-8 text-xs text-muted-text">No officer accounts found.</p>
         ) : (
           <div className="ui-stagger divide-y divide-warm-border">
-            {data.officers.map((officer) => {
+            {paginatedOfficers.items.map((officer) => {
               const sessions = sessionsByOfficer.get(officer.id) ?? [];
               const status = getPresenceStatus(officer, sessions, now);
               return (
@@ -343,6 +365,19 @@ export default function SystemLogsPage() {
                 </article>
               );
             })}
+          </div>
+        )}
+        {!loading && data.officers.length > 0 && (
+          <div className="px-5 pb-5">
+            <FileBrowserPagination
+              start={paginatedOfficers.start}
+              end={paginatedOfficers.end}
+              totalItems={data.officers.length}
+              page={paginatedOfficers.page}
+              totalPages={paginatedOfficers.totalPages}
+              onPageChange={setOfficerPage}
+              ariaLabel="Officer pages"
+            />
           </div>
         )}
       </section>
@@ -382,7 +417,7 @@ export default function SystemLogsPage() {
                 maxLength={4}
                 placeholder="Type a year, e.g. 2026"
                 value={dateFilterValue}
-                onChange={(event) => setDateFilterValue(event.target.value.replace(/\D/g, ''))}
+                onChange={(event) => changeDateFilterValue(event.target.value.replace(/\D/g, ''))}
                 className="h-9 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text placeholder:text-muted-text focus:outline-none focus:ring-2 focus:ring-clay/30 sm:max-w-xs"
               />
             ) : (
@@ -390,7 +425,7 @@ export default function SystemLogsPage() {
                 type={dateFilterMode === 'day' ? 'date' : 'month'}
                 placeholder={dateFilterMode === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM'}
                 value={dateFilterValue}
-                onChange={(event) => setDateFilterValue(event.target.value)}
+                onChange={(event) => changeDateFilterValue(event.target.value)}
                 className="h-9 w-full rounded-full border border-warm-border bg-card px-4 text-xs text-warm-text placeholder:text-muted-text focus:outline-none focus:ring-2 focus:ring-clay/30 sm:max-w-xs"
               />
             )}
@@ -412,7 +447,7 @@ export default function SystemLogsPage() {
           </p>
         ) : (
           <div className="ui-stagger divide-y divide-warm-border">
-            {data.events.map((event) => {
+            {paginatedEvents.items.map((event) => {
               const visual = eventVisual(event);
               return (
               <article key={event.id} className="group flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-cream sm:flex-row sm:items-center sm:justify-between">
@@ -435,6 +470,19 @@ export default function SystemLogsPage() {
               </article>
               );
             })}
+          </div>
+        )}
+        {!loading && data.events.length > 0 && (
+          <div className="px-5 pb-5">
+            <FileBrowserPagination
+              start={paginatedEvents.start}
+              end={paginatedEvents.end}
+              totalItems={data.events.length}
+              page={paginatedEvents.page}
+              totalPages={paginatedEvents.totalPages}
+              onPageChange={setActivityPage}
+              ariaLabel="System activity pages"
+            />
           </div>
         )}
       </section>

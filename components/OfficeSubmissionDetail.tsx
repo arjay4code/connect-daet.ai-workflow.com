@@ -25,6 +25,7 @@ import {
 import {
   getOfficeFileManagementPath,
   getWorkflowDocumentTypeLabel,
+  getWorkflowSubmissionTitle,
   isOfficeRole,
   OFFICE_CONFIG,
   OFFICE_RESPONSIBILITIES,
@@ -268,8 +269,9 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
   const [routeStatus, setRouteStatus] = useState<string | null>(null);
   const [routeStateError, setRouteStateError] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(false);
+  const [supportingAttachmentsOpen, setSupportingAttachmentsOpen] = useState(true);
   const [previewingAttachmentId, setPreviewingAttachmentId] = useState<string | null>(null);
+  const [activeDetailTab, setActiveDetailTab] = useState<'conversation' | 'activity' | 'versions'>('conversation');
   const fetchDetails = useCallback(async () => {
     if (!accountReady) return;
     setLoadError('');
@@ -645,11 +647,12 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     },
     {
       value: 'approve',
-      label: 'Approve',
+      label: 'Approve request',
+      buttonLabel: 'Approve request',
       groupLabel: 'Decision',
-      description: 'Record the responsible office’s final approval for this submission.',
+      description: 'Record the responsible office’s final approval. The requestee can then create a pickup QR; this does not release the document.',
       tone: 'primary' as const,
-      confirmation: 'Approve this submission? The requestee will be notified and the decision recorded.',
+      confirmation: 'Approve this request? The requestee will be notified and can create a pickup QR. Authorized staff must still verify identity and record the handover.',
       successMessage: 'Submission approved. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an office assignment is pending'
@@ -657,12 +660,13 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     },
     {
       value: 'reject',
-      label: 'Reject',
+      label: 'Reject request',
+      buttonLabel: 'Reject request',
       groupLabel: 'Decision',
-      description: 'Record the responsible office’s final rejection. A reason is required.',
+      description: 'Record the responsible office’s final rejection. The request will not be eligible for pickup. A reason is required.',
       tone: 'warning' as const,
       requiresMessage: true,
-      confirmation: 'Reject this submission? The requestee will be notified and the decision recorded.',
+      confirmation: 'Reject this request? The requestee will be notified and the final decision recorded.',
       successMessage: 'Submission rejected. The requestee has been notified.',
       unavailableReason: routeStateError
         ? 'Could not verify whether an office assignment is pending'
@@ -683,10 +687,10 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     },
     {
       value: 'close_submission',
-      label: 'Complete',
-      buttonLabel: 'Complete',
+      label: 'Complete request',
+      buttonLabel: 'Complete request',
       groupLabel: 'Finish',
-      description: 'Mark the entire submission complete. This is different from completing only an office assignment.',
+      description: 'Finish processing without recording approval or rejection. The requestee can then create a pickup QR; this does not release the document.',
       tone: 'strong' as const,
       successMessage: 'Submission completed. The requestee has been notified.',
       unavailableReason: routeStateError
@@ -775,28 +779,28 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     actionsByRecipient.responsible_office = [
       {
         value: 'complete_assignment',
-        label: 'Complete',
-        buttonLabel: 'Complete',
+        label: 'Complete assignment',
+        buttonLabel: 'Complete assignment',
         groupLabel: 'Finish',
-        description: 'Mark your office’s assignment handled. Add a note for the responsible office if useful.',
+        description: 'Mark only your office’s assignment handled. This does not approve or complete the request. Add a note for the responsible office if useful.',
         tone: 'primary',
         successMessage: 'Assignment completed. The responsible office has been notified.',
         unavailableReason: routeStateError ? 'Could not verify your office assignment' : undefined,
       },
       {
         value: 'approve',
-        label: 'Approve',
-        groupLabel: 'Decision',
-        description: 'Record your office’s approval response. The responsible office retains authority to complete the submission.',
+        label: 'Recommend approval',
+        groupLabel: 'Recommendation',
+        description: 'Send your office’s approval recommendation to the responsible office. This is not the final decision and does not enable pickup.',
         tone: 'primary',
         successMessage: 'Approval sent. The responsible office has been notified.',
         unavailableReason: routeStateError ? 'Could not verify your office assignment' : undefined,
       },
       {
         value: 'reject',
-        label: 'Reject',
-        groupLabel: 'Decision',
-        description: 'Record your office’s rejection response. The responsible office retains authority to complete the submission. A reason is required.',
+        label: 'Recommend rejection',
+        groupLabel: 'Recommendation',
+        description: 'Send your office’s rejection recommendation to the responsible office. This is not the final decision. A reason is required.',
         tone: 'warning',
         requiresMessage: true,
         successMessage: 'Rejection sent. The responsible office has been notified.',
@@ -920,115 +924,15 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     .reverse()
     .find((request) => request.status === 'open') ?? null;
   const activeOfficeLabel = (step: RouteStep) => getOfficeLabel(step.office_role);
-  const workflowStatus = (
-    <section
-      aria-labelledby={`workflow-status-${sub.id}`}
-      className="overflow-hidden rounded-2xl border border-warm-border bg-card"
-      role="status"
-    >
-      <header className="border-b border-warm-border px-5 py-4">
-        <h3 id={`workflow-status-${sub.id}`} className="text-sm font-bold text-warm-text">Workflow status</h3>
-        <p className="mt-0.5 text-[10px] text-muted-text">Current responsibility and office handling</p>
-      </header>
-      {isChangesRequested && (
-        <div className="border-b border-pending-text/20 bg-pending-bg/50 px-5 py-4">
-          <p className="text-xs font-bold text-pending-text">Closed — Changes Requested</p>
-          {latestOpenChangeRequest && (
-            <p className="mt-1 text-[10px] text-muted-text">
-              Requested by {getOfficeLabel(latestOpenChangeRequest.requestedByOffice)}
-              {latestOpenChangeRequest.createdAt
-                ? ` · ${new Date(latestOpenChangeRequest.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
-                : ''}
-            </p>
-          )}
-          <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
-            {latestOpenChangeRequest?.message || sub.office_comments || 'The responsible office has requested changes.'}
-          </p>
-          <p className="mt-2 text-[10px] leading-relaxed text-muted-text">
-            Offices may review the history but cannot act or send messages while this submission is closed.
-          </p>
-        </div>
-      )}
-      <div className="grid gap-4 p-5 sm:grid-cols-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Responsible office</p>
-          <p className="mt-1 text-xs font-semibold text-warm-text">
-            {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Not assigned'}
-          </p>
-          <p className="mt-1 text-[10px] leading-relaxed text-muted-text">
-            Retains responsibility for the submission and its final decision.
-          </p>
-        </div>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Currently handling</p>
-          {isChangesRequested ? (
-            <p className="mt-1 text-xs font-semibold text-warm-text">Closed — waiting for the requestee</p>
-          ) : pendingAssignments.length > 0 ? (
-            <>
-              <ul className="mt-1 space-y-1.5">
-                {pendingAssignments.map((step) => (
-                  <li key={step.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-                    <span className="font-semibold text-warm-text">{activeOfficeLabel(step)}</span>
-                    <span className="text-[10px] font-medium text-pending-text">
-                      {step.status === 'pending' ? 'Awaiting start' : 'Under review'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-text">
-                The responsible office is waiting for these assignments to be completed.
-              </p>
-            </>
-          ) : isCompleted || isRejected || isWithdrawn ? (
-            <p className="mt-1 text-xs font-medium text-muted-text">No active office assignment</p>
-          ) : (
-            <p className="mt-1 text-xs font-semibold text-warm-text">
-              {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Responsible office'} can continue processing
-            </p>
-          )}
-        </div>
-        {officeHistory.length > 0 && (
-          <div className="border-t border-warm-border pt-4 sm:col-span-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">
-              Office actions and decisions
-            </p>
-            <ol className="mt-2 divide-y divide-warm-border">
-              {officeHistory.map((entry) => (
-                <li key={entry.id} className="flex flex-col gap-1.5 py-3 first:pt-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-xs font-semibold text-warm-text">
-                        {getOfficeLabel(entry.officeRole)}
-                      </span>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${ASSIGNMENT_TONE_CLASSES[entry.tone]}`}>
-                        {entry.state}
-                      </span>
-                    </div>
-                    {entry.comments && (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-text">
-                        {entry.comments}
-                      </p>
-                    )}
-                  </div>
-                  {entry.timestamp && (
-                    <time
-                      dateTime={entry.timestamp}
-                      className="shrink-0 text-[10px] text-muted-text"
-                    >
-                      {new Date(entry.timestamp).toLocaleString([], {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </time>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-      </div>
-    </section>
-  );
+  const currentHandlingLabel = isChangesRequested
+    ? 'Waiting for the requestee'
+    : pendingAssignments.length > 0
+      ? pendingAssignments.map(activeOfficeLabel).join(', ')
+      : isCompleted || isRejected || isWithdrawn
+        ? 'No active office assignment'
+        : responsibleOfficeRole
+          ? getOfficeLabel(responsibleOfficeRole)
+          : 'Not assigned';
 
   const startOfficeReview = async () => {
     if (readOnly || !sub || !isOfficeRole(role) || !requiresReviewStart) return;
@@ -1053,23 +957,61 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
     await downloadFile(url, sub.file_name);
   };
   const previewingAttachment = attachments.find((attachment) => attachment.id === previewingAttachmentId);
+  const submissionTitle = getWorkflowSubmissionTitle(
+    sub.category ? getWorkflowDocumentTypeLabel(sub.category, sub.other_document_type) : null,
+    sub.file_name
+  );
 
   return (
     <div className="mx-auto w-full max-w-[1500px] pb-8">
-      <button
-        type="button"
-        onClick={() => {
-          if (readOnly) router.push('/workflow/admin/submissions');
-          else if (isOfficeRole(role)) router.push(getOfficeFileManagementPath(role));
-          else router.back();
-        }}
-        className="mb-5 inline-flex items-center gap-2 text-xs font-semibold text-muted-text transition-colors hover:text-clay"
-      >
-        <span className="grid h-8 w-8 place-items-center rounded-full border border-warm-border bg-card">
-          <Icon name="arrow-left" size={16} />
-        </span>
-        {readOnly ? 'Back to file registry' : 'Back to queue'}
-      </button>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (readOnly) router.push('/workflow/admin/submissions');
+            else if (isOfficeRole(role)) router.push(getOfficeFileManagementPath(role));
+            else router.back();
+          }}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-muted-text transition-colors hover:text-clay"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-warm-border bg-card">
+            <Icon name="arrow-left" size={16} />
+          </span>
+          {readOnly ? 'Back to file registry' : 'Back to queue'}
+        </button>
+        <div className="rounded-xl border border-warm-border bg-white px-5 py-3.5 text-right">
+          <Label>Tracking number</Label>
+          <p className="font-mono text-sm font-bold tracking-[0.08em] text-clay">
+            {sub.tracking_number || 'Pending'}
+          </p>
+        </div>
+      </div>
+      <section className="mb-5 rounded-2xl border border-warm-border bg-card p-5 shadow-[0_12px_35px_rgba(65,49,39,0.05)] md:p-7">
+        <div className="mb-3 flex flex-wrap items-center gap-2.5">
+          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold ${statusConfig.classes}`}>
+            <span className={`h-1.5 w-1.5 rounded-full bg-current ${isCompleted || isWithdrawn || sub.status === 'closed_by_submitter' ? 'opacity-70' : 'animate-pulse'}`} />
+            {statusConfig.label}
+          </span>
+          {sub.reopen_count === 1 && (
+            <span className="rounded-full bg-review-bg px-2.5 py-1 text-[10px] font-bold text-review-text">
+              Resubmitted
+            </span>
+          )}
+        </div>
+        <h1 className={`${fonts.serif} max-w-4xl break-words text-2xl font-semibold leading-tight tracking-[-0.02em] text-warm-text md:text-3xl`}>
+          {submissionTitle}
+        </h1>
+        <p className="mt-2 truncate text-[11px] text-muted-text" title={sub.file_name}>
+          {sender?.full_name || 'Unknown requestee'}
+          {sender?.email ? ` · ${sender.email}` : ''}
+          {' · '}Submitted {new Date(sub.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+          {' · '}{sub.file_type || 'File'}
+          {' · '}{sub.file_size ? `${(sub.file_size / 1024).toFixed(2)} KB` : 'Size unavailable'}
+          {' · '}ID {String(sub.id).split('-')[0]}
+          {isOfficeRole(selectedOfficeRole) ? ` · ${OFFICE_CONFIG[selectedOfficeRole].label}` : ''}
+        </p>
+      </section>
+
       {readOnly && (
         <p role="status" className="mb-5 rounded-xl border border-warm-border bg-card px-4 py-3 text-xs text-muted-text">
           Read-only view. Administrators can review this submission but cannot take workflow actions here.
@@ -1093,253 +1035,302 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
         </div>
       )}
 
-      {/* ── Header card ── */}
-      <section className="mb-5 overflow-hidden rounded-2xl border border-warm-border bg-card shadow-[0_12px_35px_rgba(65,49,39,0.05)]">
-        <div className="flex flex-col gap-5 p-5 md:flex-row md:items-center md:justify-between md:p-7">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2.5">
-              <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold ${statusConfig.classes}`}>
-                <span className={`h-1.5 w-1.5 rounded-full bg-current ${isCompleted || isWithdrawn || sub.status === 'closed_by_submitter' ? 'opacity-70' : 'animate-pulse'}`} />
-                {statusConfig.label}
-              </span>
-              {sub.reopen_count === 1 && (
-                <span className="rounded-full bg-review-bg px-2.5 py-1 text-[10px] font-bold text-review-text">
-                  Resubmitted
-                </span>
-              )}
-              <span className="text-[11px] font-medium text-muted-text">
-                Submission ID: {String(sub.id).split('-')[0]}
-              </span>
-              {isOfficeRole(selectedOfficeRole) && (
-                <span className="text-[11px] font-medium text-muted-text">
-                  · {OFFICE_CONFIG[selectedOfficeRole].label}
-                </span>
-              )}
-            </div>
-            <h1 className={`${fonts.serif} max-w-4xl break-words text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-warm-text md:text-[36px]`}>
-              {sub.file_name}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-muted-text">
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name="user" size={14} /> {sender?.full_name || 'Unknown requestee'}
-              </span>
-              {sender?.email && (
-                <span className="inline-flex items-center gap-1.5">{sender.email}</span>
-              )}
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name="calendar" size={14} /> Submitted{' '}
-                {new Date(sub.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Icon name="file" size={14} /> {sub.file_type || 'File'} ·{' '}
-                {sub.file_size ? `${(sub.file_size / 1024).toFixed(2)} KB` : 'Size unavailable'}
-              </span>
-            </div>
-          </div>
-          <div className="shrink-0 rounded-xl border border-warm-border bg-white px-5 py-3.5 md:text-right">
-            <Label>Tracking number</Label>
-            <p className="font-mono text-sm font-bold tracking-[0.08em] text-clay">
-              {sub.tracking_number || 'Pending'}
-            </p>
-          </div>
+      <section
+        aria-labelledby={`next-step-${sub.id}`}
+        className="mb-5 flex flex-col gap-4 rounded-2xl border border-clay bg-clay-soft p-5 md:flex-row md:items-center md:justify-between"
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Your next step</p>
+          <h2 id={`next-step-${sub.id}`} className="mt-1 text-base font-bold text-warm-text">
+            {readOnly
+              ? 'Review this submission'
+              : requiresReviewStart
+                ? 'Start processing'
+                : composerClosed
+                  ? 'Review the workflow history'
+                  : 'Choose an available action'}
+          </h2>
+          <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-muted-text">
+            {readOnly
+              ? 'This administrator view is read-only; workflow actions are not available here.'
+              : requiresReviewStart
+                ? isResponsibleOffice
+                  ? 'Start processing to receive this submission and change its status to In Process.'
+                  : 'Start your assigned review to enable the available office actions.'
+                : composerClosed
+                  ? 'This workflow step is closed. Review the conversation and activity for its history.'
+                  : 'Review the available action options, then open the conversation panel to submit your decision.'}
+          </p>
         </div>
-
-        {/* ── Submission context ── */}
-        <section className="border-t border-warm-border px-5 py-6 md:px-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Submission context</p>
-              <h2 className="mt-1 font-serif text-xl font-semibold text-warm-text">Request details</h2>
-            </div>
-            <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
-              {getWorkflowDocumentTypeLabel(sub.category ?? null, sub.other_document_type)}
-            </span>
-          </div>
-          <div className="grid gap-x-8 gap-y-5 md:grid-cols-2">
-            {sub.intended_recipient && (
-              <div>
-                <Label>Intended recipient</Label>
-                <p className="text-xs font-semibold text-warm-text">{sub.intended_recipient}</p>
-              </div>
-            )}
-            {sub.purpose && (
-              <div>
-                <Label>Purpose</Label>
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-warm-text">{sub.purpose}</p>
-              </div>
-            )}
-            {sub.requested_action && (
-              <div className="md:col-span-2">
-                <Label>Requested action</Label>
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-warm-text">{sub.requested_action}</p>
-              </div>
-            )}
-            <div className="md:col-span-2">
-              <Label>Sender notes</Label>
-              <blockquote className="whitespace-pre-wrap break-words border-l-2 border-clay pl-3 font-serif text-[14px] italic leading-relaxed text-warm-text/75">
-                {sub.description || 'No description provided.'}
-              </blockquote>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Document preview ── */}
-        <section className="border-t border-warm-border">
-          <div className="px-5 pt-4 md:px-7">
-            <DocumentDownloadWarning />
-          </div>
-          <div className={`flex items-center gap-3 px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
+        <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
+          {readOnly ? (
+            <span className="text-[11px] font-semibold text-muted-text">Read-only access</span>
+          ) : requiresReviewStart ? (
             <button
               type="button"
-              onClick={() => setPreviewOpen((open) => !open)}
-              aria-expanded={previewOpen}
-              aria-pressed={previewOpen}
-              aria-controls={`document-preview-${sub.id}`}
-              className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+              onClick={() => void startOfficeReview()}
+              disabled={updating || (!isResponsibleOffice && Boolean(routeStateError))}
+              className="inline-flex h-10 items-center justify-center rounded-full bg-clay px-5 text-xs font-bold text-white transition-colors hover:bg-warm-text disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Document preview</span>
-                <span className="mt-1 block truncate text-xs font-semibold text-warm-text">{sub.file_name}</span>
-                <span className="mt-1 block text-[10px] font-medium text-muted-text">
-                  {previewOpen ? 'Hide full document preview' : 'Select to view the full document'}
-                </span>
-              </span>
-              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors transition-transform ${
-                previewOpen
-                  ? 'rotate-90 border-clay bg-clay-soft text-clay'
-                  : 'border-warm-border text-muted-text'
-              }`}>
-                <Icon name="chevron-right" size={16} />
-              </span>
+              {updating ? 'Starting...' : 'Start processing'}
             </button>
-            <button
-              type="button"
-              onClick={downloadOriginal}
-              aria-label={`Download ${sub.file_name}`}
-              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-warm-border px-3.5 text-[11px] font-bold text-warm-text hover:bg-sidebar"
-            >
-              <Icon name="download" size={15} />
-              <span className="hidden sm:inline">Download</span>
-            </button>
-            {attachments.length > 0 && (
+          ) : officeReview && !composerClosed && (actionsByRecipient[initialRecipient] ?? []).some((action) => !action.unavailableReason) ? (
+            <>
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {(actionsByRecipient[initialRecipient] ?? [])
+                  .filter((action) => !composerClosed && !action.unavailableReason)
+                  .map((action) => (
+                    <span
+                      key={action.value}
+                      className="rounded-full border border-warm-border bg-card px-2.5 py-1 text-[10px] font-semibold text-warm-text"
+                    >
+                      {action.label}
+                    </span>
+                  ))}
+              </div>
               <button
                 type="button"
-                onClick={() => setSupportingAttachmentsOpen((open) => !open)}
-                aria-label={`${supportingAttachmentsOpen ? 'Hide' : 'Show'} ${attachments.length} supporting documents`}
-                aria-expanded={supportingAttachmentsOpen}
-                aria-controls={`supporting-attachments-${sub.id}`}
-                title={`${attachments.length} supporting ${attachments.length === 1 ? 'document' : 'documents'}`}
-                className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
-                  supportingAttachmentsOpen
-                    ? 'border-clay bg-clay-soft text-clay'
-                    : 'border-warm-border text-warm-text hover:bg-sidebar'
-                }`}
+                onClick={() => setActiveDetailTab('conversation')}
+                className="text-[11px] font-bold text-clay underline-offset-2 hover:underline"
               >
-                <Icon name="paperclip" size={16} />
-                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-clay px-1 text-[9px] font-bold leading-none text-white">
-                  {attachments.length}
-                </span>
+                Open conversation actions
               </button>
-            )}
-          </div>
-          {attachments.length > 0 && (
-            <div
-              id={`supporting-attachments-${sub.id}`}
-              hidden={!supportingAttachmentsOpen}
-              className="border-b border-warm-border bg-sidebar/40 px-5 py-4 md:px-7"
-            >
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">
-                Supporting documents
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="flex min-w-0 items-center gap-3 rounded-xl border border-warm-border bg-card p-3 text-left text-warm-text transition-colors hover:border-clay"
-                  >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-clay-soft text-clay">
-                      <Icon name="file" size={17} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[11px] font-bold">{attachment.file_name}</span>
-                      <span className="mt-0.5 block text-[9px] text-muted-text">
-                        {Math.max(1, Math.round(attachment.file_size / 1024))} KB
-                        {attachment.file_type ? ` · ${attachment.file_type.split('/').pop()?.toUpperCase()}` : ''}
-                      </span>
-                    </span>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewingAttachmentId((current) =>
-                          current === attachment.id ? null : attachment.id
-                        )}
-                        aria-label={`${previewingAttachmentId === attachment.id ? 'Close preview of' : 'Preview'} ${attachment.file_name}`}
-                        aria-pressed={previewingAttachmentId === attachment.id}
-                        className={`grid h-9 w-9 place-items-center rounded-full transition-colors ${
-                          previewingAttachmentId === attachment.id
-                            ? 'bg-clay-soft text-clay'
-                            : 'text-muted-text hover:bg-sidebar hover:text-warm-text'
-                        }`}
-                      >
-                        <span className="text-sm" aria-hidden="true">⌕</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void downloadAttachment(attachment)}
-                        aria-label={`Download ${attachment.file_name}`}
-                        className="grid h-9 w-9 place-items-center rounded-full text-muted-text transition-colors hover:bg-sidebar hover:text-warm-text"
-                      >
-                        <Icon name="download" size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {previewingAttachment && (
-                <section className="mt-4 overflow-hidden rounded-xl border border-warm-border bg-card">
-                  <header className="flex items-center justify-between gap-3 border-b border-warm-border px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-clay">Supporting document preview</p>
-                      <h3 className="mt-1 truncate text-xs font-semibold text-warm-text">{previewingAttachment.file_name}</h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewingAttachmentId(null)}
-                      aria-label="Close supporting document preview"
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-warm-border text-muted-text hover:bg-sidebar"
-                    >
-                      <span aria-hidden="true">×</span>
-                    </button>
-                  </header>
-                  <div className="relative flex h-[min(65vh,680px)] min-h-[360px] items-center justify-center overflow-auto bg-[#eae5df] p-4 md:p-6">
-                    <FilePreview
-                      file={{
-                        file_name: previewingAttachment.file_name,
-                        file_url: '',
-                        file_path: previewingAttachment.file_path,
-                        file_type: previewingAttachment.file_type,
-                      }}
-                      warnOnDownload
-                    />
-                  </div>
-                </section>
-              )}
-            </div>
+            </>
+          ) : (
+            <span className="text-[11px] font-semibold text-muted-text">
+              No workflow actions are available here.
+            </span>
           )}
-          <div id={`document-preview-${sub.id}`} hidden={!previewOpen}>
-            {previewOpen && (
-              <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
-                <FilePreview file={sub} warnOnDownload />
-              </div>
-            )}
-          </div>
-        </section>
+        </div>
       </section>
 
-      {/* ── Main grid ── */}
-      <div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-5">
+      {/* ── Document ── */}
+      <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+        <div className={`flex items-center gap-3 px-5 py-4 md:px-7 ${previewOpen ? 'border-b border-warm-border' : ''}`}>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen((open) => !open)}
+            aria-expanded={previewOpen}
+            aria-pressed={previewOpen}
+            aria-controls={`document-preview-${sub.id}`}
+            className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.15em] text-clay">Document</span>
+              <span className="mt-1 block truncate text-xs font-semibold text-warm-text">{sub.file_name}</span>
+              <span className="mt-1 block text-[10px] font-medium text-muted-text">
+                {previewOpen ? 'Hide full document preview' : 'Select to view the full document'}
+              </span>
+            </span>
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors transition-transform ${
+              previewOpen
+                ? 'rotate-90 border-clay bg-clay-soft text-clay'
+                : 'border-warm-border text-muted-text'
+            }`}>
+              <Icon name="chevron-right" size={16} />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={downloadOriginal}
+            aria-label={`Download ${sub.file_name}`}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-warm-border px-3.5 text-[11px] font-bold text-warm-text hover:bg-sidebar"
+          >
+            <Icon name="download" size={15} />
+            <span className="hidden sm:inline">Download</span>
+          </button>
+          {attachments.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSupportingAttachmentsOpen((open) => !open)}
+              aria-label={`${supportingAttachmentsOpen ? 'Hide' : 'Show'} ${attachments.length} supporting documents`}
+              aria-expanded={supportingAttachmentsOpen}
+              aria-controls={`supporting-attachments-${sub.id}`}
+              title={`${attachments.length} supporting ${attachments.length === 1 ? 'document' : 'documents'}`}
+              className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
+                supportingAttachmentsOpen
+                  ? 'border-clay bg-clay-soft text-clay'
+                  : 'border-warm-border text-warm-text hover:bg-sidebar'
+              }`}
+            >
+              <Icon name="paperclip" size={16} />
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-clay px-1 text-[9px] font-bold leading-none text-white">
+                {attachments.length}
+              </span>
+            </button>
+          )}
+        </div>
+        {attachments.length > 0 && (
+          <div
+            id={`supporting-attachments-${sub.id}`}
+            hidden={!supportingAttachmentsOpen}
+            className="border-b border-warm-border bg-sidebar/40 px-5 py-4 md:px-7"
+          >
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-text">
+              Supporting documents
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  className="flex min-w-0 items-center gap-2 rounded-xl border border-warm-border bg-card px-3 py-2 text-left text-warm-text transition-colors hover:border-clay"
+                >
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-clay-soft text-clay">
+                    <Icon name="file" size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[11px] font-bold">{attachment.file_name}</span>
+                    <span className="mt-0.5 block text-[9px] text-muted-text">
+                      {Math.max(1, Math.round(attachment.file_size / 1024))} KB
+                      {attachment.file_type ? ` · ${attachment.file_type.split('/').pop()?.toUpperCase()}` : ''}
+                    </span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewingAttachmentId((current) =>
+                        current === attachment.id ? null : attachment.id
+                      )}
+                      aria-label={`${previewingAttachmentId === attachment.id ? 'Close preview of' : 'Preview'} ${attachment.file_name}`}
+                      aria-pressed={previewingAttachmentId === attachment.id}
+                      className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
+                        previewingAttachmentId === attachment.id
+                          ? 'bg-clay-soft text-clay'
+                          : 'text-muted-text hover:bg-sidebar hover:text-warm-text'
+                      }`}
+                    >
+                      <span className="text-sm" aria-hidden="true">⌕</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void downloadAttachment(attachment)}
+                      aria-label={`Download ${attachment.file_name}`}
+                      className="grid h-8 w-8 place-items-center rounded-full text-muted-text transition-colors hover:bg-sidebar hover:text-warm-text"
+                    >
+                      <Icon name="download" size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {previewingAttachment && (
+              <section className="mt-4 overflow-hidden rounded-xl border border-warm-border bg-card">
+                <header className="flex items-center justify-between gap-3 border-b border-warm-border px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-clay">Supporting document preview</p>
+                    <h3 className="mt-1 truncate text-xs font-semibold text-warm-text">{previewingAttachment.file_name}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewingAttachmentId(null)}
+                    aria-label="Close supporting document preview"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-warm-border text-muted-text hover:bg-sidebar"
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </header>
+                <div className="relative flex h-[min(65vh,680px)] min-h-[360px] items-center justify-center overflow-auto bg-[#eae5df] p-4 md:p-6">
+                  <FilePreview
+                    file={{
+                      file_name: previewingAttachment.file_name,
+                      file_url: '',
+                      file_path: previewingAttachment.file_path,
+                      file_type: previewingAttachment.file_type,
+                    }}
+                    warnOnDownload
+                  />
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+          <div id={`document-preview-${sub.id}`} hidden={!previewOpen}>
+            {previewOpen && (
+              <>
+                <div className="px-5 pt-4 md:px-7">
+                  <DocumentDownloadWarning />
+                </div>
+                <div className="relative flex h-[min(70vh,760px)] min-h-[540px] items-center justify-center overflow-auto bg-[#eae5df] p-5 md:p-8 max-lg:h-[min(65vh,480px)] max-lg:min-h-[min(65vh,360px)]">
+                  <FilePreview file={sub} warnOnDownload />
+                </div>
+              </>
+            )}
+          </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+        <div
+          role="tablist"
+          aria-label="Submission detail sections"
+          aria-orientation="horizontal"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+            event.preventDefault();
+            const tabs = ['conversation', 'activity', 'versions'] as const;
+            const currentIndex = tabs.indexOf(activeDetailTab);
+            const offset = event.key === 'ArrowRight' ? 1 : -1;
+            const nextTab = tabs[(currentIndex + offset + tabs.length) % tabs.length];
+            setActiveDetailTab(nextTab);
+            document.getElementById(`detail-tab-${sub.id}-${nextTab}`)?.focus();
+          }}
+          className="flex overflow-x-auto border-b border-warm-border px-3"
+        >
+          <button
+            type="button"
+            role="tab"
+            id={`detail-tab-${sub.id}-conversation`}
+            aria-selected={activeDetailTab === 'conversation'}
+            aria-controls={`detail-panel-${sub.id}-conversation`}
+            tabIndex={activeDetailTab === 'conversation' ? 0 : -1}
+            onClick={() => setActiveDetailTab('conversation')}
+            className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+              activeDetailTab === 'conversation' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+            }`}
+          >
+            Conversation
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id={`detail-tab-${sub.id}-activity`}
+            aria-selected={activeDetailTab === 'activity'}
+            aria-controls={`detail-panel-${sub.id}-activity`}
+            tabIndex={activeDetailTab === 'activity' ? 0 : -1}
+            onClick={() => setActiveDetailTab('activity')}
+            className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+              activeDetailTab === 'activity' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+            }`}
+          >
+            Activity
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id={`detail-tab-${sub.id}-versions`}
+            aria-selected={activeDetailTab === 'versions'}
+            aria-controls={`detail-panel-${sub.id}-versions`}
+            tabIndex={activeDetailTab === 'versions' ? 0 : -1}
+            onClick={() => setActiveDetailTab('versions')}
+            className={`shrink-0 border-b-2 px-4 py-3 text-xs font-bold transition-colors ${
+              activeDetailTab === 'versions' ? 'border-clay text-clay' : 'border-transparent text-muted-text hover:text-warm-text'
+            }`}
+          >
+            File versions
+          </button>
+        </div>
+
+        <div
+          id={`detail-panel-${sub.id}-conversation`}
+          role="tabpanel"
+          aria-labelledby={`detail-tab-${sub.id}-conversation`}
+          tabIndex={0}
+          hidden={activeDetailTab !== 'conversation'}
+          className="p-4 md:p-5"
+        >
           {officeReview ? (
-            <>
+            <div className="[&>section>div]:grid-cols-1 [&>section>div>aside]:hidden">
               <DocumentMessaging
                 key={sub.id}
                 submissionId={sub.id}
@@ -1355,18 +1346,19 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                   actionsByRecipient,
                   initialRecipient,
                   initialAction,
+                  contextNote: isRecipientOffice
+                    ? 'Your office is supporting this request. Completing an assignment only closes your assignment; recommendations go to the responsible office, which makes the final decision.'
+                    : 'Your office owns this request. Approve or Reject records the final decision; Complete request finishes processing without recording approval or rejection.',
                   statusLine,
-                  workflowStatus,
                   showStatusLine: false,
                   isClosed: composerClosed,
                   startReviewMessage: isResponsibleOffice
                     ? 'Start processing to receive this submission and change its status to In Process.'
                     : 'The submission is already In Process, but your office assignment is still pending. Start processing here to enable its action options.',
                   startReviewDisabled: !isResponsibleOffice && Boolean(routeStateError),
-                  onStartReview: !readOnly && requiresReviewStart ? startOfficeReview : undefined,
                   isOfficeWorkspace: true,
                   activeAssignmentStepId: activeRouteStep?.id ?? null,
-                  showWorkflowActions: !readOnly && (isResponsibleOffice || isRecipientOffice),
+                  showWorkflowActions: !readOnly && (isResponsibleOffice || isRecipientOffice) && !requiresReviewStart,
                   actionSectionId: `office-workflow-action-${sub.id}`,
                   closedMessage: isChangesRequested
                     ? 'This submission is closed while changes are requested. Offices may review the history but cannot act or send messages.'
@@ -1393,35 +1385,179 @@ export default function ApproverManagePage({ readOnly = false }: { readOnly?: bo
                     await fetchDetails();
                   },
                 }}
-                activity={(
-                  <div>
-                    <WorkflowActivityTimeline
-                      events={auditLogs.map((log) => ({
-                        id: log.id,
-                        actionType: log.action_type,
-                        label: getActionLabel(log.action_type),
-                        createdAt: log.created_at,
-                        actor: log.profiles?.full_name || 'System',
-                        actorRole: getActorRoleLabel(log.profiles?.role),
-                        comments: log.comments,
-                      }))}
-                    />
-                  </div>
-                )}
+                activity={null}
               />
-              <WorkflowRevisionTimeline
-                history={revisionHistory}
-                loading={revisionHistoryLoading}
-                error={revisionHistoryError}
-                isOfficeWorkspace={isOfficeRole(role) && !readOnly}
-              />
-            </>
+            </div>
           ) : (
             <div className="flex min-h-64 items-center justify-center rounded-2xl border border-warm-border bg-card p-6 text-center text-xs text-muted-text">
               This submission is not assigned to your office.
             </div>
           )}
-    </div>
+        </div>
+
+        <div
+          id={`detail-panel-${sub.id}-activity`}
+          role="tabpanel"
+          aria-labelledby={`detail-tab-${sub.id}-activity`}
+          tabIndex={0}
+          hidden={activeDetailTab !== 'activity'}
+          className="p-4 md:p-5"
+        >
+          <WorkflowActivityTimeline
+            events={auditLogs.map((log) => ({
+              id: log.id,
+              actionType: log.action_type,
+              label: getActionLabel(log.action_type),
+              createdAt: log.created_at,
+              actor: log.profiles?.full_name || 'System',
+              actorRole: getActorRoleLabel(log.profiles?.role),
+              comments: log.comments,
+            }))}
+          />
+        </div>
+
+        <div
+          id={`detail-panel-${sub.id}-versions`}
+          role="tabpanel"
+          aria-labelledby={`detail-tab-${sub.id}-versions`}
+          tabIndex={0}
+          hidden={activeDetailTab !== 'versions'}
+          className="p-4 md:p-5"
+        >
+          <WorkflowRevisionTimeline
+            history={revisionHistory}
+            loading={revisionHistoryLoading}
+            error={revisionHistoryError}
+            isOfficeWorkspace={isOfficeRole(role) && !readOnly}
+          />
+        </div>
+      </section>
+        </div>
+
+        <aside className="space-y-5 lg:sticky lg:top-4 lg:self-start">
+          <section
+            aria-labelledby={`workflow-status-${sub.id}`}
+            className="overflow-hidden rounded-2xl border border-warm-border bg-card"
+            role="status"
+          >
+            <header className="border-b border-warm-border px-5 py-4">
+              <h2 id={`workflow-status-${sub.id}`} className="text-sm font-bold text-warm-text">At a glance</h2>
+              <p className="mt-0.5 text-[10px] text-muted-text">Responsibility, active handling, and what is needed next</p>
+            </header>
+            <div className="space-y-4 p-5">
+              <div>
+                <Label>Responsible office</Label>
+                <p className="text-xs font-semibold text-warm-text">
+                  {responsibleOfficeRole ? getOfficeLabel(responsibleOfficeRole) : 'Not assigned'}
+                </p>
+              </div>
+              <div>
+                <Label>Handling now</Label>
+                <p className="text-xs font-semibold text-warm-text">
+                  {isChangesRequested ? 'Processing paused' : currentHandlingLabel}
+                </p>
+              </div>
+              <div>
+                <Label>Waiting on</Label>
+                <p className="text-xs font-semibold text-warm-text">
+                  {isChangesRequested
+                    ? 'Requestee response'
+                    : pendingAssignments.length > 0
+                      ? pendingAssignments.map(activeOfficeLabel).join(', ')
+                      : isCompleted || isRejected || isWithdrawn
+                        ? 'No further action'
+                        : responsibleOfficeRole
+                          ? getOfficeLabel(responsibleOfficeRole)
+                          : 'Not assigned'}
+                </p>
+              </div>
+              {isChangesRequested && (
+                <div className="rounded-xl border border-pending-text/20 bg-pending-bg/50 p-3">
+                  <p className="text-[10px] font-bold text-pending-text">Latest request note</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-warm-text">
+                    {latestOpenChangeRequest?.message || sub.office_comments || 'No additional note was provided.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-border px-5 py-4">
+              <div>
+                <h2 className="text-sm font-bold text-warm-text">Request details</h2>
+                <p className="mt-0.5 text-[10px] text-muted-text">Information provided with the submission</p>
+              </div>
+              <span className="rounded-full bg-clay-soft px-3 py-1.5 text-[10px] font-bold text-clay">
+                {getWorkflowDocumentTypeLabel(sub.category ?? null, sub.other_document_type)}
+              </span>
+            </header>
+            <div className="space-y-4 p-5">
+              <div>
+                <Label>Intended recipient</Label>
+                <p className="text-xs font-semibold text-warm-text">{sub.intended_recipient || 'Not specified'}</p>
+              </div>
+              <div>
+                <Label>Purpose</Label>
+                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
+                  {sub.purpose || 'No purpose provided.'}
+                </p>
+              </div>
+              <div>
+                <Label>Requested action</Label>
+                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-warm-text">
+                  {sub.requested_action || 'No specific action provided.'}
+                </p>
+              </div>
+              <div>
+                <Label>Sender notes</Label>
+                <blockquote className="whitespace-pre-wrap break-words border-l-2 border-clay pl-3 font-serif text-[14px] italic leading-relaxed text-warm-text/75">
+                  {sub.description || 'No description provided.'}
+                </blockquote>
+              </div>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-warm-border bg-card">
+            <header className="border-b border-warm-border px-5 py-4">
+              <h2 className="text-sm font-bold text-warm-text">Office route</h2>
+              <p className="mt-0.5 text-[10px] text-muted-text">Assignment activity for this submission</p>
+            </header>
+            <div className="max-h-80 overflow-y-auto p-4">
+              {officeHistory.length === 0 ? (
+                <p className="rounded-xl bg-sidebar/60 px-4 py-3 text-[11px] text-muted-text">
+                  No office route has been recorded yet.
+                </p>
+              ) : (
+                <ol className="space-y-2">
+                  {officeHistory.map((entry) => (
+                    <li key={entry.id} className="rounded-xl border border-warm-border bg-sidebar/40 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold text-warm-text">{getOfficeLabel(entry.officeRole)}</p>
+                          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${ASSIGNMENT_TONE_CLASSES[entry.tone]}`}>
+                            {entry.state}
+                          </span>
+                        </div>
+                        {entry.timestamp && (
+                          <time dateTime={entry.timestamp} className="shrink-0 text-[9px] text-muted-text">
+                            {new Date(entry.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                          </time>
+                        )}
+                      </div>
+                      {entry.comments && (
+                        <p className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-muted-text">
+                          {entry.comments}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

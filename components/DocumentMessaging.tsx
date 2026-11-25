@@ -1619,9 +1619,13 @@ export default function DocumentMessaging({
                 </p>
               )}
               {currentAction.description && (
-                <p className="text-[10px] leading-relaxed text-muted-text" aria-live="polite">
-                  {currentAction.description}
-                </p>
+                <div className="flex items-start gap-2.5 rounded-xl border border-warm-border bg-white px-3.5 py-3" aria-live="polite">
+                  <span className="mt-0.5 shrink-0 text-clay"><Icon name="info" size={14} /></span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-text">Effect of this action</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-warm-text">{currentAction.description}</p>
+                  </div>
+                </div>
               )}
               {workflowComposer.renderActionFields?.(currentAction.value)}
 
